@@ -166,7 +166,7 @@ ERP/CRM 自动同步
 复杂关键路径计算
 复杂权限矩阵
 Excel 公式引擎
-真正的在线 spreadsheet 编辑
+通用在线 spreadsheet 编辑器 / 任意单元格与公式编辑
 ```
 
 ## 8. 核心视图
@@ -248,5 +248,8 @@ MVP 验收至少满足：
 9. 可在 Workbook Edit Mode 修改允许字段、新增行、显式删除行，并在 commit 前查看 validation 和 business diff
 10. 可创建 branch / tag / revert
 11. 可导出 JSON repo snapshot 并重新导入恢复数据
-12. 所有写入均有 commit 记录
+12. 可导入 Excel `.xlsx` Full Master Data / Periodic Update 模板
+13. 可导出 Excel `.xlsx` workbook/report
+14. 可导出 CSV 当前 sheet 作为辅助格式
+15. 所有写入均有 commit 记录
 ```
