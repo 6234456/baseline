@@ -36,10 +36,15 @@ function appendSheet<T extends object>(workbook: ExcelWorkbook, rows: T[], name:
   normalizedRows.forEach((row) => worksheet.addRow(row));
   worksheet.getRow(1).font = { bold: true };
   worksheet.views = [{ state: "frozen", ySplit: 1 }];
+  return worksheet;
 }
 
 function appendJsonSheet(workbook: ExcelWorkbook, rows: Array<{ key: string; json: string }>, name: string) {
-  appendSheet(workbook, rows, name);
+  return appendSheet(workbook, rows, name);
+}
+
+function hideInternalSource<T extends { sourceCommitId?: unknown }>(rows: T[]) {
+  return rows.map(({ sourceCommitId: _sourceCommitId, ...row }) => row);
 }
 
 function toArrayBuffer(buffer: ExcelBuffer): ArrayBuffer {
@@ -107,15 +112,14 @@ export async function exportWorkbookXlsx(repository: EpcRepository) {
     Object.entries(dashboard.kpis).map(([metric, value]) => ({ metric, value, currency: "EUR" })),
     "Portfolio Summary"
   );
-  appendSheet(workbook, repository.projects, "Project Register");
-  appendSheet(workbook, repository.projectPhases, "Project Phases");
-  appendSheet(workbook, repository.milestones, "Milestone Plan");
-  appendSheet(workbook, repository.guarantees, "Guarantee Register");
-  appendSheet(workbook, repository.cashflowItems, "Cashflow Forecast");
-  appendSheet(workbook, repository.progressSnapshots, "Progress Snapshot");
+  appendSheet(workbook, hideInternalSource(repository.projects), "Project Register");
+  appendSheet(workbook, hideInternalSource(repository.projectPhases), "Project Phases");
+  appendSheet(workbook, hideInternalSource(repository.milestones), "Milestone Plan");
+  appendSheet(workbook, hideInternalSource(repository.guarantees), "Guarantee Register");
+  appendSheet(workbook, hideInternalSource(repository.cashflowItems), "Cashflow Forecast");
+  appendSheet(workbook, hideInternalSource(repository.progressSnapshots), "Progress Snapshot");
   appendSheet(workbook, [], "Validation Errors");
-  appendSheet(workbook, [], "Version Diff");
-  appendJsonSheet(
+  const metadataSheet = appendJsonSheet(
     workbook,
     [
       { key: "settings", json: JSON.stringify(repository.settings) },
@@ -126,6 +130,7 @@ export async function exportWorkbookXlsx(repository: EpcRepository) {
     ],
     "Repo Metadata"
   );
+  metadataSheet.state = "veryHidden";
 
   return toArrayBuffer(await workbook.xlsx.writeBuffer());
 }

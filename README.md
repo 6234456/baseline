@@ -10,9 +10,9 @@ The current MVP is a strictly frontend, static-deployable web app for managing E
 - Deterministic 20-project in-memory repository
 - JSON repo snapshot import/export
 - Excel `.xlsx` workbook import/export through lazy-loaded ExcelJS
-- Git-like in-app commit, branch, tag, validation, and business diff
+- Internal audit metadata with business-facing change review and change log views
 - Workbook with View/Edit Mode toggle, controlled Project Register edits, row create, and explicit row delete
-- Dashboard, cashflow, guarantee, timeline, versions, import center, and settings views
+- Dashboard, cashflow, guarantee, timeline, change log, import center, and settings views
 - Lucide icons, Roboto/Noto fallback stack, and `#1565C0` visual system
 
 Core decisions from the reference docs:
@@ -20,7 +20,7 @@ Core decisions from the reference docs:
 - Base currency is `EUR`.
 - Workbook/grid defaults to View Mode and can switch to controlled Edit Mode.
 - Workbook cells are not the source of truth; canonical domain data is the only business fact source.
-- Workbook edits, imports, and controlled forms all write through Validation -> Business Diff -> Commit.
+- Workbook edits, imports, and controlled forms all write through Validation -> Business Changes -> Apply.
 - Import delete must be explicit with `deleteFlag = TRUE`.
 - Default guarantee exposure metric is Issued Exposure, with Required Exposure and Fee Forecast toggles.
 

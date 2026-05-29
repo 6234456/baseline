@@ -146,8 +146,7 @@ export function buildWorkbookProjection(repository: EpcRepository, mode = "VIEW"
         { id: "pm", title: "PM", type: "TEXT", editable: true },
         { id: "location", title: "Location", type: "TEXT", editable: true },
         { id: "contractAmount", title: "Contract Amount", type: "MONEY", editable: true },
-        { id: "status", title: "Status", type: "STATUS", editable: true },
-        { id: "sourceCommitId", title: "Source Commit", type: "COMMIT_HASH" }
+        { id: "status", title: "Status", type: "STATUS", editable: true }
       ],
       rows: repository.projects.map((project) => ({ ...project }))
     },
@@ -235,17 +234,6 @@ export function buildWorkbookProjection(repository: EpcRepository, mode = "VIEW"
       columns: [
         { id: "level", title: "Level", type: "STATUS" },
         { id: "message", title: "Message", type: "TEXT" }
-      ],
-      rows: []
-    },
-    {
-      sheetId: "version-diff",
-      name: "Version Diff",
-      readOnly: true,
-      mode,
-      columns: [
-        { id: "operation", title: "Operation", type: "STATUS" },
-        { id: "description", title: "Description", type: "TEXT" }
       ],
       rows: []
     }

@@ -10,8 +10,6 @@ import {
   Eye,
   FileJson,
   FileSpreadsheet,
-  GitBranch,
-  GitCommit,
   History,
   LayoutDashboard,
   Pencil,
@@ -65,7 +63,7 @@ const NAV_ITEMS: Array<{ id: ViewId; label: string; icon: LucideIcon }> = [
   { id: "timeline", label: "Timeline", icon: CalendarRange },
   { id: "cashflow", label: "Cashflow", icon: WalletCards },
   { id: "guarantees", label: "Guarantees", icon: ShieldCheck },
-  { id: "versions", label: "Versions", icon: GitBranch },
+  { id: "versions", label: "Change Log", icon: History },
   { id: "import", label: "Import Center", icon: Upload },
   { id: "settings", label: "Settings", icon: Settings }
 ];
@@ -87,15 +85,6 @@ function metricLabel(key: string) {
     .replace(/([A-Z])/g, " $1")
     .replace(/^./, (value) => value.toUpperCase())
     .replace("Kpis", "KPIs");
-}
-
-function getDefaultBranch(repository: EpcRepository) {
-  return repository.branches.find((branch) => branch.isDefault) ?? repository.branches[0];
-}
-
-function getHeadCommit(repository: EpcRepository) {
-  const branch = getDefaultBranch(repository);
-  return repository.commits.find((commit) => commit.hash === branch?.headCommitHash) ?? repository.commits[0];
 }
 
 function downloadTextFile(content: string, filename: string, type: string) {
@@ -145,6 +134,15 @@ function monthLabel(month: string) {
   return `${monthNumber}/${year.slice(2)}`;
 }
 
+function workflowStatusLabel(status: StagingTransaction["status"] | "OPEN") {
+  if (status === "READY_TO_COMMIT") return "Ready to apply";
+  if (status === "STAGED") return "Reviewed";
+  if (status === "INVALID") return "Needs attention";
+  if (status === "COMMITTED") return "Applied";
+  if (status === "DISCARDED") return "Discarded";
+  return "Draft";
+}
+
 function projectFromDraft(index: number): Project {
   const now = new Date().toISOString();
   return {
@@ -172,6 +170,7 @@ function safeDate(value: string) {
 }
 
 function CashflowChart({ data }: { data: ReturnType<typeof buildDashboardProjection>["cashflow"] }) {
+  const [selectedMonth, setSelectedMonth] = useState(data[0]?.month ?? "");
   const chartWidth = 820;
   const chartHeight = 260;
   const padding = { top: 18, right: 24, bottom: 42, left: 54 };
@@ -188,63 +187,98 @@ function CashflowChart({ data }: { data: ReturnType<typeof buildDashboardProject
       return `${index === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
     })
     .join(" ");
+  const selected = data.find((month) => month.month === selectedMonth) ?? data[0];
 
   return (
-    <svg className="chart" viewBox={`0 0 ${chartWidth} ${chartHeight}`} role="img" aria-label="Monthly cashflow chart">
-      <line x1={padding.left} x2={chartWidth - padding.right} y1={zeroY} y2={zeroY} className="axis-line" />
-      {data.map((month, index) => {
-        const x = padding.left + slot * index + slot * 0.2;
-        const barWidth = slot * 0.24;
-        const inflowY = yFor(month.inflow);
-        const outflowY = yFor(-month.outflow);
-        return (
-          <g key={month.month}>
-            <rect
-              x={x}
-              y={inflowY}
-              width={barWidth}
-              height={Math.max(2, zeroY - inflowY)}
-              rx="2"
-              className="bar-inflow"
+    <div className="chart-shell">
+      <svg className="chart" viewBox={`0 0 ${chartWidth} ${chartHeight}`} role="img" aria-label="Monthly cashflow chart">
+        <line x1={padding.left} x2={chartWidth - padding.right} y1={zeroY} y2={zeroY} className="axis-line" />
+        {data.map((month, index) => {
+          const x = padding.left + slot * index + slot * 0.2;
+          const barWidth = slot * 0.24;
+          const inflowY = yFor(month.inflow);
+          const outflowY = yFor(-month.outflow);
+          const isSelected = selected?.month === month.month;
+          const selectMonth = () => setSelectedMonth(month.month);
+          return (
+            <g
+              key={month.month}
+              className="chart-hit"
+              role="button"
+              tabIndex={0}
+              aria-label={`Show ${month.month} cashflow detail`}
+              data-testid={`cashflow-point-${month.month}`}
+              onClick={selectMonth}
+              onFocus={selectMonth}
+              onMouseEnter={selectMonth}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") selectMonth();
+              }}
             >
-              <title>{`${month.month} inflow ${formatCompactMoney(month.inflow)}`}</title>
-            </rect>
-            <rect
-              x={x + barWidth + 3}
-              y={zeroY}
-              width={barWidth}
-              height={Math.max(2, outflowY - zeroY)}
-              rx="2"
-              className="bar-outflow"
-            >
-              <title>{`${month.month} outflow ${formatCompactMoney(month.outflow)}`}</title>
-            </rect>
-            <text x={padding.left + slot * index + slot / 2} y={chartHeight - 14} textAnchor="middle" className="chart-label">
-              {monthLabel(month.month)}
-            </text>
-          </g>
-        );
-      })}
-      <path d={netPath} className="net-line" />
-      {data.map((month, index) => (
-        <circle
-          key={`${month.month}-net`}
-          cx={padding.left + slot * index + slot / 2}
-          cy={yFor(month.net)}
-          r="3.5"
-          className="net-dot"
-        >
-          <title>{`${month.month} net ${formatCompactMoney(month.net)}`}</title>
-        </circle>
-      ))}
-      <text x={padding.left} y="18" className="chart-caption">
-        Forecast cashflow by month
-      </text>
-    </svg>
+              <rect
+                x={padding.left + slot * index}
+                y={padding.top}
+                width={slot}
+                height={innerHeight}
+                className="chart-hit-target"
+              />
+              <rect
+                x={x}
+                y={inflowY}
+                width={barWidth}
+                height={Math.max(2, zeroY - inflowY)}
+                rx="2"
+                className={`bar-inflow ${isSelected ? "active" : ""}`}
+              >
+                <title>{`${month.month} inflow ${formatCompactMoney(month.inflow)}`}</title>
+              </rect>
+              <rect
+                x={x + barWidth + 3}
+                y={zeroY}
+                width={barWidth}
+                height={Math.max(2, outflowY - zeroY)}
+                rx="2"
+                className={`bar-outflow ${isSelected ? "active" : ""}`}
+              >
+                <title>{`${month.month} outflow ${formatCompactMoney(month.outflow)}`}</title>
+              </rect>
+              <text x={padding.left + slot * index + slot / 2} y={chartHeight - 14} textAnchor="middle" className="chart-label">
+                {monthLabel(month.month)}
+              </text>
+            </g>
+          );
+        })}
+        <path d={netPath} className="net-line" />
+        {data.map((month, index) => (
+          <circle
+            key={`${month.month}-net`}
+            cx={padding.left + slot * index + slot / 2}
+            cy={yFor(month.net)}
+            r={selected?.month === month.month ? "5" : "3.5"}
+            className={`net-dot ${selected?.month === month.month ? "active" : ""}`}
+          >
+            <title>{`${month.month} net ${formatCompactMoney(month.net)}`}</title>
+          </circle>
+        ))}
+        <text x={padding.left} y="18" className="chart-caption">
+          Forecast cashflow by month
+        </text>
+      </svg>
+      {selected && (
+        <div className="chart-detail" aria-live="polite">
+          <span>Cashflow detail</span>
+          <strong>{selected.month}</strong>
+          <span>In {formatCompactMoney(selected.inflow)}</span>
+          <span>Out {formatCompactMoney(selected.outflow)}</span>
+          <span className={selected.net >= 0 ? "positive" : "negative"}>Net {formatCompactMoney(selected.net)}</span>
+        </div>
+      )}
+    </div>
   );
 }
 
 function GuaranteeAreaChart({ repository }: { repository: EpcRepository }) {
+  const [selectedMonth, setSelectedMonth] = useState("2026-06");
   const exposure = buildGuaranteeExposure(repository, {
     horizonMonths: 12,
     stackMode: "PROJECT",
@@ -265,44 +299,79 @@ function GuaranteeAreaChart({ repository }: { repository: EpcRepository }) {
   const areaPath = `${linePath} L ${xFor(exposure.totalByMonth.length - 1).toFixed(1)} ${
     padding.top + innerHeight
   } L ${padding.left} ${padding.top + innerHeight} Z`;
+  const selectedIndex = Math.max(0, exposure.months.indexOf(selectedMonth));
+  const selectedValue = exposure.totalByMonth[selectedIndex] ?? 0;
 
   return (
-    <svg className="chart" viewBox={`0 0 ${chartWidth} ${chartHeight}`} role="img" aria-label="Guarantee exposure area chart">
-      <defs>
-        <linearGradient id="guaranteeGradient" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="#1565C0" stopOpacity="0.42" />
-          <stop offset="100%" stopColor="#90CAF9" stopOpacity="0.08" />
-        </linearGradient>
-      </defs>
-      <line
-        x1={padding.left}
-        x2={chartWidth - padding.right}
-        y1={padding.top + innerHeight}
-        y2={padding.top + innerHeight}
-        className="axis-line"
-      />
-      <path d={areaPath} fill="url(#guaranteeGradient)" />
-      <path d={linePath} className="exposure-line" />
-      {exposure.totalByMonth.map((value, index) => (
-        <g key={exposure.months[index]}>
-          <circle cx={xFor(index)} cy={yFor(value)} r="3.2" className="exposure-dot">
-            <title>{`${exposure.months[index]} ${formatCompactMoney(value)}`}</title>
-          </circle>
-          <text x={xFor(index)} y={chartHeight - 14} textAnchor="middle" className="chart-label">
-            {monthLabel(exposure.months[index])}
-          </text>
-        </g>
-      ))}
-      <text x={padding.left} y="18" className="chart-caption">
-        Issued guarantee exposure
-      </text>
-    </svg>
+    <div className="chart-shell">
+      <svg className="chart" viewBox={`0 0 ${chartWidth} ${chartHeight}`} role="img" aria-label="Guarantee exposure area chart">
+        <defs>
+          <linearGradient id="guaranteeGradient" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="#1565C0" stopOpacity="0.42" />
+            <stop offset="100%" stopColor="#90CAF9" stopOpacity="0.08" />
+          </linearGradient>
+        </defs>
+        <line
+          x1={padding.left}
+          x2={chartWidth - padding.right}
+          y1={padding.top + innerHeight}
+          y2={padding.top + innerHeight}
+          className="axis-line"
+        />
+        <path d={areaPath} fill="url(#guaranteeGradient)" />
+        <path d={linePath} className="exposure-line" />
+        {exposure.totalByMonth.map((value, index) => {
+          const month = exposure.months[index];
+          const isSelected = index === selectedIndex;
+          const selectMonth = () => setSelectedMonth(month);
+          return (
+            <g
+              key={month}
+              className="chart-hit"
+              role="button"
+              tabIndex={0}
+              aria-label={`Show ${month} guarantee exposure detail`}
+              data-testid={`guarantee-point-${month}`}
+              onClick={selectMonth}
+              onFocus={selectMonth}
+              onMouseEnter={selectMonth}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") selectMonth();
+              }}
+            >
+              <rect
+                x={xFor(index) - slot / 2}
+                y={padding.top}
+                width={slot}
+                height={innerHeight}
+                className="chart-hit-target"
+              />
+              <circle cx={xFor(index)} cy={yFor(value)} r={isSelected ? "5" : "3.2"} className={`exposure-dot ${isSelected ? "active" : ""}`}>
+                <title>{`${month} ${formatCompactMoney(value)}`}</title>
+              </circle>
+              <text x={xFor(index)} y={chartHeight - 14} textAnchor="middle" className="chart-label">
+                {monthLabel(month)}
+              </text>
+            </g>
+          );
+        })}
+        <text x={padding.left} y="18" className="chart-caption">
+          Issued guarantee exposure
+        </text>
+      </svg>
+      <div className="chart-detail" aria-live="polite">
+        <span>Guarantee detail</span>
+        <strong>{exposure.months[selectedIndex]}</strong>
+        <span>{formatCompactMoney(selectedValue)} issued exposure</span>
+        <span>{repository.guarantees.filter((guarantee) => guarantee.status === "ISSUED").length} issued guarantees</span>
+      </div>
+    </div>
   );
 }
 
 function DiffList({ diffs }: { diffs: BusinessDiff[] }) {
   if (!diffs.length) {
-    return <div className="empty-state">No staged business diff.</div>;
+    return <div className="empty-state">No reviewed business changes.</div>;
   }
 
   return (
@@ -325,15 +394,21 @@ function App() {
   const [pendingChanges, setPendingChanges] = useState<WorkbookCellChange[]>([]);
   const [rowOperations, setRowOperations] = useState<WorkbookRowOperation[]>([]);
   const [staging, setStaging] = useState<StagingTransaction | null>(null);
-  const [commitMessage, setCommitMessage] = useState("Update portfolio from workbook");
+  const [changeNote, setChangeNote] = useState("Update portfolio from workbook");
   const [notice, setNotice] = useState("Seed portfolio loaded");
+  const [selectedTimelineProjectId, setSelectedTimelineProjectId] = useState("project-001");
+  const [selectedExposureCell, setSelectedExposureCell] = useState<{
+    seriesKey: string;
+    month: string;
+    value: number;
+  } | null>(null);
   const jsonInputRef = useRef<HTMLInputElement>(null);
   const excelInputRef = useRef<HTMLInputElement>(null);
 
   const dashboard = useMemo(() => buildDashboardProjection(repository), [repository]);
   const workbook = useMemo(() => buildWorkbookProjection(repository, workbookMode), [repository, workbookMode]);
-  const branch = getDefaultBranch(repository);
-  const headCommit = getHeadCommit(repository);
+  const currentScenario =
+    repository.scenarios.find((scenario) => scenario.code === repository.settings.defaultScenarioCode) ?? repository.scenarios[0];
   const activeSheet = workbook.sheets.find((sheet) => sheet.sheetId === activeSheetId) ?? workbook.sheets[0];
   const deletedProjectIds = useMemo(
     () =>
@@ -356,7 +431,7 @@ function App() {
   function switchWorkbookMode(nextMode: WorkbookMode) {
     setWorkbookMode(nextMode);
     clearWorkbookDraft();
-    setNotice(nextMode === "EDIT" ? "Workbook Edit Mode opened" : "Workbook returned to View Mode");
+    setNotice(nextMode === "EDIT" ? "Workbook edit mode opened" : "Workbook returned to view mode");
   }
 
   function updateActiveView(nextView: ViewId) {
@@ -399,19 +474,19 @@ function App() {
     session.rowOperations = rowOperations;
     const staged = stageWorkbookEditSession(repository, session);
     setStaging(staged);
-    setNotice(staged.status === "READY_TO_COMMIT" ? "Workbook changes staged" : "Validation errors found");
+    setNotice(staged.status === "READY_TO_COMMIT" ? "Workbook changes reviewed" : "Validation errors found");
   }
 
   function commitWorkbookChanges() {
     if (!staging) return;
     const result = commitStagingTransaction(repository, staging, {
       author: repository.settings.currentUser.name,
-      message: commitMessage
+      message: changeNote
     });
     setRepository(result.repository);
     clearWorkbookDraft();
-    setCommitMessage("Update portfolio from workbook");
-    setNotice(`Committed: ${result.commit.hash}`);
+    setChangeNote("Update portfolio from workbook");
+    setNotice("Changes saved");
   }
 
   function addProjectRow() {
@@ -458,7 +533,7 @@ function App() {
   function exportJson() {
     downloadTextFile(
       exportRepoSnapshot(repository, repository.settings.currentUser.name),
-      `epc-repository-${headCommit?.hash ?? "snapshot"}.json`,
+      "epc-repository-snapshot.json",
       "application/json"
     );
     setNotice("JSON snapshot exported");
@@ -466,7 +541,7 @@ function App() {
 
   async function exportExcel() {
     const buffer = await exportWorkbookXlsx(repository);
-    downloadXlsx(buffer, `epc-workbook-${headCommit?.hash ?? "snapshot"}.xlsx`);
+    downloadXlsx(buffer, "epc-workbook.xlsx");
     setNotice("Excel workbook exported");
   }
 
@@ -685,7 +760,7 @@ function App() {
               disabled={!pendingChangeCount}
               onClick={stageWorkbookChanges}
             >
-              <Save size={16} /> Stage changes
+              <Save size={16} /> Review changes
             </button>
           </div>
         </section>
@@ -714,7 +789,9 @@ function App() {
           <div className="panel">
             <div className="panel-header">
               <h2>Validation</h2>
-              <span className={`status-pill ${statusClass(staging?.status ?? "open")}`}>{staging?.status ?? "OPEN"}</span>
+              <span className={`status-pill ${statusClass(staging?.status ?? "open")}`}>
+                {workflowStatusLabel(staging?.status ?? "OPEN")}
+              </span>
             </div>
             {staging?.validationIssues.length ? (
               <div className="issue-list">
@@ -731,26 +808,26 @@ function App() {
           </div>
           <div className="panel">
             <div className="panel-header">
-              <h2>Business Diff</h2>
+              <h2>Business Changes</h2>
               <span className="panel-meta">{staging?.diff.length ?? 0} entries</span>
             </div>
             <DiffList diffs={staging?.diff ?? []} />
           </div>
         </section>
-        <section className="commit-band">
-          <label htmlFor="commit-message">Commit message</label>
+        <section className="change-band">
+          <label htmlFor="change-note">Change note</label>
           <input
-            id="commit-message"
-            value={commitMessage}
-            onChange={(event) => setCommitMessage(event.target.value)}
+            id="change-note"
+            value={changeNote}
+            onChange={(event) => setChangeNote(event.target.value)}
           />
           <button
             type="button"
             className="primary-button"
-            disabled={!staging || staging.status !== "READY_TO_COMMIT" || !commitMessage.trim()}
+            disabled={!staging || staging.status !== "READY_TO_COMMIT" || !changeNote.trim()}
             onClick={commitWorkbookChanges}
           >
-            <GitCommit size={16} /> Commit staged changes
+            <CheckCircle2 size={16} /> Apply reviewed changes
           </button>
         </section>
       </>
@@ -759,6 +836,7 @@ function App() {
 
   function renderTimeline() {
     const projects = repository.projects.slice(0, 12);
+    const selectedProject = projects.find((project) => project.id === selectedTimelineProjectId) ?? projects[0];
     const minDate = Math.min(...projects.map((project) => safeDate(project.startDate)));
     const maxDate = Math.max(...projects.map((project) => safeDate(project.forecastCOD)));
     const span = Math.max(1, maxDate - minDate);
@@ -773,8 +851,21 @@ function App() {
         <div className="timeline-grid">
           {projects.map((project) => {
             const projectGuarantees = repository.guarantees.filter((guarantee) => guarantee.projectId === project.id);
+            const isSelected = selectedProject?.id === project.id;
+            const selectProject = () => setSelectedTimelineProjectId(project.id);
             return (
-              <div className="timeline-row" key={project.id}>
+              <div
+                className={`timeline-row interactive ${isSelected ? "selected" : ""}`}
+                key={project.id}
+                role="button"
+                tabIndex={0}
+                data-testid={`timeline-project-${project.code}`}
+                aria-label={`Show ${project.code} timeline detail`}
+                onClick={selectProject}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") selectProject();
+                }}
+              >
                 <div className="timeline-label">
                   <code>{project.code}</code>
                   <span>{project.name}</span>
@@ -807,6 +898,14 @@ function App() {
             );
           })}
         </div>
+        {selectedProject && (
+          <div className="chart-detail timeline-detail" aria-live="polite">
+            <span>Timeline detail</span>
+            <strong>{selectedProject.code}</strong>
+            <span>{selectedProject.startDate} to {selectedProject.forecastCOD}</span>
+            <span>{selectedProject.status}</span>
+          </div>
+        )}
       </section>
     );
   }
@@ -852,6 +951,12 @@ function App() {
       stackMode: "BANK",
       valueMode: "ISSUED_EXPOSURE"
     });
+    const activeExposureCell =
+      selectedExposureCell ?? {
+        seriesKey: exposure.series[0]?.key ?? "Portfolio",
+        month: exposure.months[0] ?? "2026-06",
+        value: exposure.series[0]?.values[0] ?? 0
+      };
 
     return (
       <>
@@ -865,14 +970,35 @@ function App() {
               <div className="heatmap-row" key={series.key}>
                 <span>{series.key}</span>
                 {series.values.map((value, index) => (
-                  <i
+                  <button
+                    type="button"
                     key={`${series.key}-${exposure.months[index]}`}
                     title={`${series.key} ${exposure.months[index]} ${formatCompactMoney(value)}`}
+                    aria-label={`Show ${series.key} ${exposure.months[index]} exposure detail`}
+                    data-testid={`guarantee-heatmap-${series.key}-${exposure.months[index]}`}
+                    className={
+                      activeExposureCell.seriesKey === series.key && activeExposureCell.month === exposure.months[index]
+                        ? "active"
+                        : undefined
+                    }
+                    onClick={() =>
+                      setSelectedExposureCell({
+                        seriesKey: series.key,
+                        month: exposure.months[index],
+                        value
+                      })
+                    }
                     style={{ opacity: Math.max(0.08, value / Math.max(1, ...exposure.totalByMonth)) }}
                   />
                 ))}
               </div>
             ))}
+          </div>
+          <div className="chart-detail" aria-live="polite">
+            <span>Exposure cell</span>
+            <strong>{activeExposureCell.month}</strong>
+            <span>{activeExposureCell.seriesKey}</span>
+            <span>{formatCompactMoney(activeExposureCell.value)}</span>
           </div>
         </section>
         <section className="panel">
@@ -913,48 +1039,24 @@ function App() {
 
   function renderVersions() {
     return (
-      <section className="panel-grid two">
-        <div className="panel">
-          <div className="panel-header">
-            <h2>Commit History</h2>
-            <span className="panel-meta">{repository.commits.length} commits</span>
-          </div>
-          <div className="commit-list">
-            {repository.commits.map((commit) => (
-              <div className="commit-row" key={commit.hash}>
-                <GitCommit size={16} />
-                <div>
-                  <strong>{commit.message}</strong>
-                  <span>
-                    <code>{commit.hash}</code> by {commit.author}
-                  </span>
-                </div>
-                <span>{new Date(commit.createdAt).toLocaleDateString("en-GB")}</span>
-              </div>
-            ))}
-          </div>
+      <section className="panel">
+        <div className="panel-header">
+          <h2>Change Log</h2>
+          <span className="panel-meta">{repository.commits.length} saved update{repository.commits.length === 1 ? "" : "s"}</span>
         </div>
-        <div className="panel">
-          <div className="panel-header">
-            <h2>Branch and Tags</h2>
-            <span className="panel-meta">Git-like model</span>
-          </div>
-          <div className="meta-stack">
-            {repository.branches.map((item) => (
-              <div key={item.id}>
-                <GitBranch size={16} />
-                <span>{item.name}</span>
-                <code>{item.headCommitHash}</code>
+        <div className="change-list">
+          {repository.commits.map((change) => (
+            <div className="change-row" key={change.id}>
+              <History size={16} />
+              <div>
+                <strong>{change.message}</strong>
+                <span>{change.author} · {new Date(change.createdAt).toLocaleDateString("en-GB")}</span>
               </div>
-            ))}
-            {repository.tags.map((item) => (
-              <div key={item.id}>
-                <History size={16} />
-                <span>{item.name}</span>
-                <code>{item.commitHash}</code>
-              </div>
-            ))}
-          </div>
+              <span>
+                {change.diffSummary.projectsChanged} projects · {formatCompactMoney(change.diffSummary.cashflowImpactNext90Days)} cash impact
+              </span>
+            </div>
+          ))}
         </div>
       </section>
     );
@@ -1069,10 +1171,8 @@ function App() {
             <h1>{NAV_ITEMS.find((item) => item.id === activeView)?.label ?? "Dashboard"}</h1>
             <span>{notice}</span>
           </div>
-          <div className="context-bar" aria-label="Repository context">
-            <span><GitBranch size={14} /> {branch?.name ?? "base"}</span>
-            <span><GitCommit size={14} /> {headCommit?.hash ?? "none"}</span>
-            <span><BarChart3 size={14} /> {repository.settings.defaultScenarioCode}</span>
+          <div className="context-bar" aria-label="Workspace context">
+            <span><BarChart3 size={14} /> {currentScenario?.name ?? "Base"} scenario</span>
             <span>{repository.settings.baseCurrency}</span>
             <span className={pendingChangeCount ? "dirty" : undefined}>{pendingChangeCount} draft</span>
           </div>

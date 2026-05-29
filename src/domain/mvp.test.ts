@@ -149,10 +149,10 @@ describe("EPC Control Console MVP domain", () => {
         "Guarantee Register",
         "Cashflow Forecast",
         "Progress Snapshot",
-        "Validation Errors",
-        "Version Diff"
+        "Validation Errors"
       ])
     );
+    expect(sheetNames).not.toContain("Version Diff");
 
     const restored = await importWorkbookXlsx(buffer);
     expect(restored.projects).toHaveLength(repository.projects.length);

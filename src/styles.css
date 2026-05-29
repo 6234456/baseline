@@ -232,7 +232,7 @@ code {
 .panel,
 .workbook-toolbar,
 .sheet-tabs,
-.commit-band {
+.change-band {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -299,6 +299,11 @@ code {
   overflow: visible;
 }
 
+.chart-shell {
+  display: grid;
+  gap: 10px;
+}
+
 .axis-line {
   stroke: #c8d4e1;
   stroke-width: 1;
@@ -310,6 +315,11 @@ code {
 
 .bar-outflow {
   fill: #98a2b3;
+}
+
+.bar-inflow.active,
+.bar-outflow.active {
+  filter: drop-shadow(0 2px 4px rgba(21, 101, 192, 0.24));
 }
 
 .net-line,
@@ -326,6 +336,53 @@ code {
   stroke-width: 2;
 }
 
+.net-dot.active,
+.exposure-dot.active {
+  fill: #1565c0;
+  stroke: #ffffff;
+  stroke-width: 2.5;
+}
+
+.chart-hit {
+  cursor: pointer;
+  outline: none;
+}
+
+.chart-hit:focus-visible .chart-hit-target,
+.chart-hit:hover .chart-hit-target {
+  stroke: rgba(21, 101, 192, 0.28);
+  stroke-width: 1;
+}
+
+.chart-hit-target {
+  fill: transparent;
+}
+
+.chart-detail {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 9px 10px;
+  color: var(--ink-700);
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 0.84rem;
+}
+
+.chart-detail > span:first-child {
+  color: var(--ink-500);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.chart-detail strong {
+  color: var(--ink-900);
+}
+
 .chart-label {
   fill: var(--ink-500);
   font-size: 11px;
@@ -338,7 +395,7 @@ code {
 }
 
 .dense-list,
-.commit-list,
+.change-list,
 .meta-stack,
 .diff-list,
 .issue-list {
@@ -405,7 +462,7 @@ code {
 }
 
 .workbook-toolbar,
-.commit-band {
+.change-band {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -558,7 +615,7 @@ tbody tr:hover td {
 
 .diff-row,
 .issue-row,
-.commit-row,
+.change-row,
 .meta-stack > div {
   min-height: 38px;
   display: flex;
@@ -576,17 +633,17 @@ tbody tr:hover td {
   background: var(--risk-bg);
 }
 
-.commit-band {
+.change-band {
   justify-content: flex-start;
 }
 
-.commit-band label {
+.change-band label {
   color: var(--ink-700);
   font-size: 0.84rem;
   font-weight: 600;
 }
 
-.commit-band input {
+.change-band input {
   min-height: 34px;
   min-width: min(430px, 48vw);
   flex: 1 1 260px;
@@ -614,6 +671,24 @@ tbody tr:hover td {
   background: var(--surface-soft);
   border: 1px solid var(--line);
   border-radius: 6px;
+}
+
+.timeline-row.interactive {
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.timeline-row.interactive:hover,
+.timeline-row.interactive:focus-visible,
+.timeline-row.interactive.selected {
+  background: #f7fbff;
+  border-color: var(--brand-200);
+  box-shadow: inset 3px 0 0 var(--brand-700);
+}
+
+.timeline-detail {
+  margin-top: 12px;
 }
 
 .timeline-label {
@@ -684,31 +759,41 @@ tbody tr:hover td {
   white-space: nowrap;
 }
 
-.heatmap-row i {
+.heatmap-row button {
   height: 26px;
   background: #1565c0;
+  border: 1px solid transparent;
   border-radius: 4px;
+  cursor: pointer;
+  outline: none;
 }
 
-.commit-row {
+.heatmap-row button:hover,
+.heatmap-row button:focus-visible,
+.heatmap-row button.active {
+  border-color: #0b4f9f;
+  box-shadow: 0 0 0 3px rgba(144, 202, 249, 0.3);
+}
+
+.change-row {
   justify-content: space-between;
 }
 
-.commit-row > div {
+.change-row > div {
   min-width: 0;
   flex: 1;
   display: grid;
   gap: 4px;
 }
 
-.commit-row strong,
-.commit-row span {
+.change-row strong,
+.change-row span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.commit-row span,
+.change-row span,
 .settings-grid span {
   color: var(--ink-500);
   font-size: 0.8rem;
@@ -830,7 +915,7 @@ tbody tr:hover td {
   }
 
   .workbook-toolbar,
-  .commit-band {
+  .change-band {
     align-items: stretch;
     flex-direction: column;
   }
