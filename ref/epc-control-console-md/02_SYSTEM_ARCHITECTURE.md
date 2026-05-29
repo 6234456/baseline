@@ -31,15 +31,15 @@ D3 多维可视化
 │ Versions | Import Center | Settings                         │
 ├──────────────────────────────────────────────────────────────┤
 │ Presentation Adapters                                        │
-│ Glide Grid Adapter | D3 Chart Components | Timeline Renderer │
+│ Glide Grid Adapter | Workbook Edit Adapter | D3 Components    │
 ├──────────────────────────────────────────────────────────────┤
 │ Projection Engines                                           │
 │ Workbook Projection | Chart Projection | Timeline Projection │
 │ MicroChart Projection | Export Projection                   │
 ├──────────────────────────────────────────────────────────────┤
 │ Domain Engines                                               │
-│ Cashflow Engine | Guarantee Engine | Validation Engine       │
-│ Scenario Engine | Diff Engine | Version Engine              │
+│ Workbook Edit Engine | Cashflow Engine | Guarantee Engine     │
+│ Validation Engine | Scenario Engine | Diff Engine | Version  │
 ├──────────────────────────────────────────────────────────────┤
 │ Repository Layer                                             │
 │ Domain Repositories | Commit Store | Branch Store | Tag Store│
@@ -110,6 +110,22 @@ XLSX / CSV / JSON file
 → Projection refresh
 ```
 
+### 4.2.1 Workbook Edit 写入流
+
+```text
+Glide Workbook Edit Mode
+→ WorkbookEditSession
+→ Cell / Row Operation Mapper
+→ Validation Engine
+→ StagingTransaction
+→ Business Diff
+→ Commit Engine
+→ Repository update
+→ Projection refresh
+```
+
+Workbook Edit Mode 不直接写入 IndexedDB domain stores。所有编辑先进入 edit session，再复用 validation、diff 和 commit 管线。
+
 ### 4.3 版本流
 
 ```text
@@ -178,6 +194,9 @@ src/
  ├── grid/
  │   ├── GlideWorkbook.tsx
  │   ├── gridAdapter.ts
+ │   ├── editSession.ts
+ │   ├── editability.ts
+ │   ├── rowOperations.ts
  │   ├── cells/
  │   └── microCharts/
  │
@@ -236,6 +255,7 @@ epc_control_console
  ├── fxRates
  ├── importBatches
  ├── stagingTransactions
+ ├── workbookEditSessions
  ├── commits
  ├── branches
  ├── tags
@@ -301,7 +321,7 @@ Team collaboration API
 
 ```text
 1. D3 图表不得从 Glide cells 读取数据
-2. Glide cells 不得直接写入 IndexedDB
+2. Glide cells 不得直接写入 IndexedDB domain stores；Edit Mode 只能写入 WorkbookEditSession / StagingTransaction
 3. 导入文件不得直接覆盖 repository
 4. 所有业务写入必须产生 diff 和 commit
 5. 已 tag 的版本不可直接修改

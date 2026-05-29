@@ -520,7 +520,10 @@ export interface SheetViewModel {
   rows: Record<string, unknown>[];
   frozenColumns?: number;
   filters?: boolean;
-  readOnly: true;
+  mode: WorkbookMode;
+  readOnly: boolean;
+  editable?: boolean;
+  allowedRowOperations?: WorkbookEditOperation[];
 }
 
 export interface SheetColumn {
@@ -537,6 +540,40 @@ export interface SheetColumn {
     | "COMMIT_HASH";
   width?: number;
   align?: "left" | "right" | "center";
+}
+
+export type WorkbookMode = "VIEW" | "EDIT";
+
+export type WorkbookEditOperation = "CREATE" | "UPDATE" | "DELETE";
+
+export interface WorkbookEditSession extends BaseEntity {
+  branch: string;
+  baseCommitHash: string;
+  sheetId: string;
+  status: "OPEN" | "VALIDATING" | "READY_TO_COMMIT" | "COMMITTED" | "DISCARDED";
+  changes: WorkbookCellChange[];
+  rowOperations: WorkbookRowOperation[];
+  validationIssues: ValidationIssue[];
+  diff: BusinessDiff[];
+}
+
+export interface WorkbookCellChange {
+  id: string;
+  entityType: BusinessDiff["entityType"];
+  entityId?: string;
+  entityCode?: string;
+  field: string;
+  oldValue?: unknown;
+  newValue: unknown;
+}
+
+export interface WorkbookRowOperation {
+  id: string;
+  operation: WorkbookEditOperation;
+  entityType: BusinessDiff["entityType"];
+  entityId?: string;
+  entityCode?: string;
+  draftRow?: Record<string, unknown>;
 }
 ```
 
