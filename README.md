@@ -1,20 +1,19 @@
 # EPC Control Console
 
-Baseline workspace for the EPC Control Console MVP.
+Baseline workspace and runnable MVP for the EPC Control Console.
 
-## Product Baseline
+## Runnable MVP
 
-The MVP is a strictly frontend, static-deployable web app for managing EPC portfolio control data:
+The current MVP is a strictly frontend, static-deployable web app for managing EPC portfolio control data:
 
 - React + TypeScript + Vite
-- IndexedDB local repository
+- Deterministic 20-project in-memory repository
 - JSON repo snapshot import/export
-- Excel `.xlsx` full master and periodic update import/export
-- CSV current-sheet import/export as secondary support
-- Git-like in-app commit, branch, tag, diff, and revert
-- Glide Workbook with View/Edit Mode toggle
-- D3 dashboards and EPC control timeline
-- shadcn/ui, Lucide icons, Roboto, and `#1565C0` visual system
+- Excel `.xlsx` workbook import/export through lazy-loaded ExcelJS
+- Git-like in-app commit, branch, tag, validation, and business diff
+- Workbook with View/Edit Mode toggle, controlled Project Register edits, row create, and explicit row delete
+- Dashboard, cashflow, guarantee, timeline, versions, import center, and settings views
+- Lucide icons, Roboto/Noto fallback stack, and `#1565C0` visual system
 
 Core decisions from the reference docs:
 
@@ -24,6 +23,24 @@ Core decisions from the reference docs:
 - Workbook edits, imports, and controlled forms all write through Validation -> Business Diff -> Commit.
 - Import delete must be explicit with `deleteFlag = TRUE`.
 - Default guarantee exposure metric is Issued Exposure, with Required Exposure and Fee Forecast toggles.
+
+## Local Development
+
+```bash
+npm install
+npm run dev
+npm test
+npm run build
+npm audit
+```
+
+The Vite app is served at:
+
+```text
+http://localhost:5173/baseline/
+```
+
+The build output is written to `dist/`.
 
 ## Reference Docs
 
@@ -49,12 +66,17 @@ Recommended reading order:
 
 ## GitHub Pages Direction
 
-The MVP should remain compatible with GitHub Pages by keeping the app as a static Vite build.
+The MVP is configured for GitHub Pages by keeping the app as a static Vite build with base path `/baseline/`.
 
-When the frontend is scaffolded, use:
+CI and Pages workflows live in:
 
 ```text
-npm run build
+.github/workflows/ci.yml
+.github/workflows/pages.yml
 ```
 
-and publish the generated `dist/` directory through GitHub Pages or a GitHub Actions deployment workflow.
+The target Pages URL is:
+
+```text
+https://6234456.github.io/baseline/
+```
