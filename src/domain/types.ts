@@ -297,7 +297,7 @@ export interface DashboardProjection {
 export interface SheetColumn {
   id: string;
   title: string;
-  type: "TEXT" | "MONEY" | "PERCENT" | "DATE" | "STATUS" | "BADGE" | "COMMIT_HASH";
+  type: "TEXT" | "MONEY" | "PERCENT" | "DATE" | "STATUS" | "BADGE" | "COMMIT_HASH" | "CURRENCY" | "SPARKLINE";
   editable?: boolean;
 }
 

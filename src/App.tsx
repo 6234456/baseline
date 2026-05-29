@@ -109,6 +109,7 @@ function displayCellValue(column: SheetColumn, value: unknown) {
   if (value === undefined || value === null || value === "") return "-";
   if (column.type === "MONEY" && typeof value === "number") return formatMoney(value);
   if (column.type === "PERCENT" && typeof value === "number") return formatPercent(value);
+  if (column.type === "SPARKLINE" && Array.isArray(value)) return value.join(" ");
   return String(value);
 }
 
@@ -205,6 +206,51 @@ function stackedAreaPath(points: AreaPoint[]) {
 function linePath(points: Array<{ x: number; y: number }>) {
   return points
     .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
+    .join(" ");
+}
+
+function sparklineValues(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is number => typeof entry === "number" && Number.isFinite(entry));
+}
+
+function SparklineCell({ label, testId, values }: { label: string; testId: string; values: number[] }) {
+  if (!values.length) return <span>-</span>;
+
+  const width = 112;
+  const height = 28;
+  const padding = 4;
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+  const span = Math.max(1, maxValue - minValue);
+  const xStep = values.length > 1 ? (width - padding * 2) / (values.length - 1) : 0;
+  const points = values
+    .map((value, index) => {
+      const x = padding + index * xStep;
+      const y = height - padding - ((value - minValue) / span) * (height - padding * 2);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+
+  return (
+    <svg className="sparkline" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={label} data-testid={testId}>
+      <polyline points={points} className="sparkline-line" />
+      <circle cx={padding + (values.length - 1) * xStep} cy={height - padding - ((values[values.length - 1] - minValue) / span) * (height - padding * 2)} r="2.5" className="sparkline-dot" />
+      <title>{`${label}: ${values.map((value) => Math.round(value)).join(", ")}`}</title>
+    </svg>
+  );
+}
+
+function isRightAlignedColumn(column: SheetColumn) {
+  return column.type === "MONEY" || column.type === "PERCENT" || column.type === "CURRENCY";
+}
+
+function workbookColumnClassName(column: SheetColumn) {
+  return [
+    isRightAlignedColumn(column) ? "cell-align-right" : "",
+    column.type === "SPARKLINE" ? "sparkline-cell" : ""
+  ]
+    .filter(Boolean)
     .join(" ");
 }
 
@@ -504,6 +550,7 @@ function App() {
   const [activeView, setActiveView] = useState<ViewId>("dashboard");
   const [workbookMode, setWorkbookMode] = useState<WorkbookMode>("VIEW");
   const [activeSheetId, setActiveSheetId] = useState("project-register");
+  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
   const [pendingChanges, setPendingChanges] = useState<WorkbookCellChange[]>([]);
   const [rowOperations, setRowOperations] = useState<WorkbookRowOperation[]>([]);
   const [staging, setStaging] = useState<StagingTransaction | null>(null);
@@ -674,6 +721,37 @@ function App() {
     }
   }
 
+  function columnFilterKey(sheetId: string, columnId: string) {
+    return `${sheetId}:${columnId}`;
+  }
+
+  function updateColumnFilter(sheetId: string, columnId: string, value: string) {
+    const key = columnFilterKey(sheetId, columnId);
+    setColumnFilters((current) => {
+      const next = { ...current };
+      if (value.trim()) {
+        next[key] = value;
+      } else {
+        delete next[key];
+      }
+      return next;
+    });
+  }
+
+  function workbookCellFilterText(row: Record<string, unknown>, column: SheetColumn) {
+    const value = currentDraftValue(row, column.id);
+    if (column.type === "SPARKLINE") return sparklineValues(value).map((entry) => Math.round(entry)).join(" ");
+    return displayCellValue(column, value);
+  }
+
+  function rowMatchesWorkbookFilters(sheet: SheetViewModel, row: Record<string, unknown>) {
+    return sheet.columns.every((column) => {
+      const query = columnFilters[columnFilterKey(sheet.sheetId, column.id)]?.trim().toLowerCase();
+      if (!query) return true;
+      return workbookCellFilterText(row, column).toLowerCase().includes(query);
+    });
+  }
+
   function renderWorkbookCell(row: Record<string, unknown>, column: SheetColumn) {
     const entityCode = String(row.code ?? row.id ?? "row");
     const value = currentDraftValue(row, column.id);
@@ -684,6 +762,15 @@ function App() {
       !deletedProjectIds.has(String(row.id ?? ""));
 
     if (!canEdit) {
+      if (column.type === "SPARKLINE") {
+        return (
+          <SparklineCell
+            label={`${column.title} ${entityCode}`}
+            testId={`sparkline-${entityCode}-${column.id}`}
+            values={sparklineValues(value)}
+          />
+        );
+      }
       if (column.type === "STATUS") {
         return <span className={`status-pill ${statusClass(value)}`}>{displayCellValue(column, value)}</span>;
       }
@@ -727,26 +814,42 @@ function App() {
       .filter((operation) => operation.operation === "CREATE" && operation.entityType === "PROJECT" && operation.draftRow)
       .map((operation) => operation.draftRow as Record<string, unknown>);
     const rows = sheet.sheetId === "project-register" ? [...createRows, ...sheet.rows] : sheet.rows;
+    const visibleRows = rows.filter((row) => rowMatchesWorkbookFilters(sheet, row));
 
     return (
       <div className="workbook-grid" role="region" aria-label={`${sheet.name} grid`}>
         <table>
           <thead>
             <tr>
-              {sheet.columns.map((column) => (
-                <th key={column.id}>{column.title}</th>
-              ))}
+              {sheet.columns.map((column) => {
+                const filterKey = columnFilterKey(sheet.sheetId, column.id);
+                return (
+                  <th key={column.id} className={workbookColumnClassName(column)}>
+                    <div className="filter-header">
+                      <span>{column.title}</span>
+                      <input
+                        aria-label={`Filter ${column.title}`}
+                        value={columnFilters[filterKey] ?? ""}
+                        onChange={(event) => updateColumnFilter(sheet.sheetId, column.id, event.target.value)}
+                      />
+                    </div>
+                  </th>
+                );
+              })}
               {sheet.sheetId === "project-register" && <th aria-label="row actions" />}
             </tr>
           </thead>
           <tbody>
-            {rows.slice(0, 24).map((row) => {
+            {visibleRows.slice(0, 24).map((row) => {
               const rowId = String(row.id ?? row.code);
+              const rowCode = String(row.code ?? rowId);
               const deleted = deletedProjectIds.has(rowId);
               return (
                 <tr key={rowId} className={deleted ? "row-deleted" : undefined}>
                   {sheet.columns.map((column) => (
-                    <td key={column.id}>{renderWorkbookCell(row, column)}</td>
+                    <td key={column.id} className={workbookColumnClassName(column)} data-testid={`cell-${rowCode}-${column.id}`}>
+                      {renderWorkbookCell(row, column)}
+                    </td>
                   ))}
                   {sheet.sheetId === "project-register" && (
                     <td className="action-cell">

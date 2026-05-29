@@ -39,6 +39,25 @@ describe("EPC Control Console app", () => {
     expect(screen.queryByText("a13f29b")).not.toBeInTheDocument();
   });
 
+  it("supports workbook header filters, right aligned currency, and table sparklines", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open workbook/i }));
+
+    expect(screen.getByLabelText("Filter Project Code")).toBeInTheDocument();
+    expect(screen.getByLabelText("Filter Currency")).toBeInTheDocument();
+    expect(screen.getByLabelText("Filter Progress Trend")).toBeInTheDocument();
+
+    const currencyCell = screen.getByTestId("cell-EPC-001-currency");
+    expect(currencyCell).toHaveClass("cell-align-right");
+    expect(currencyCell).toHaveTextContent("EUR");
+    expect(screen.getByTestId("sparkline-EPC-001-progressTrend")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Filter Project Code"), { target: { value: "EPC-004" } });
+    expect(screen.getByText("EPC-004")).toBeInTheDocument();
+    expect(screen.queryByText("EPC-003")).not.toBeInTheDocument();
+  });
+
   it("updates visible chart details from chart interactions", () => {
     const { container } = render(<App />);
 

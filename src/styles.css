@@ -597,13 +597,41 @@ th {
   position: sticky;
   top: 0;
   z-index: 1;
-  height: 36px;
-  padding: 0 10px;
+  min-height: 54px;
+  padding: 7px 8px;
   color: var(--ink-700);
   background: #eef5fb;
   border-bottom: 1px solid var(--line);
   text-align: left;
+  vertical-align: top;
   white-space: nowrap;
+}
+
+.filter-header {
+  min-width: 104px;
+  display: grid;
+  gap: 5px;
+}
+
+.filter-header span {
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.filter-header input {
+  width: 100%;
+  min-height: 24px;
+  padding: 0 6px;
+  color: var(--ink-900);
+  background: #ffffff;
+  border: 1px solid #d3dfeb;
+  border-radius: 4px;
+  outline: none;
+}
+
+.filter-header input:focus {
+  border-color: var(--brand-700);
+  box-shadow: 0 0 0 2px rgba(144, 202, 249, 0.28);
 }
 
 td {
@@ -616,6 +644,44 @@ td {
 
 tbody tr:hover td {
   background: #f7fbff;
+}
+
+.cell-align-right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+th.cell-align-right .filter-header span {
+  text-align: right;
+}
+
+td.cell-align-right .cell-input {
+  text-align: right;
+}
+
+.sparkline-cell {
+  min-width: 124px;
+}
+
+.sparkline {
+  width: 112px;
+  height: 28px;
+  display: block;
+  margin-left: auto;
+}
+
+.sparkline-line {
+  fill: none;
+  stroke: var(--brand-700);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.sparkline-dot {
+  fill: #ffffff;
+  stroke: var(--brand-700);
+  stroke-width: 1.8;
 }
 
 .row-deleted td {

@@ -110,9 +110,33 @@ export function buildDashboardProjection(repository: EpcRepository): DashboardPr
   };
 }
 
+function projectCashflowSeries(repository: EpcRepository, projectId: string, months: string[], mode: "INFLOW" | "NET") {
+  return months.map((month) => {
+    const items = repository.cashflowItems.filter((item) => item.projectId === projectId && monthKey(item.forecastDate) === month);
+    const inflow = items
+      .filter((item) => item.type === "INFLOW")
+      .reduce((sum, item) => sum + item.amount * item.probability, 0);
+    if (mode === "INFLOW") return Math.round(inflow);
+    const outflow = items
+      .filter((item) => item.type === "OUTFLOW")
+      .reduce((sum, item) => sum + item.amount * item.probability, 0);
+    return Math.round(inflow - outflow);
+  });
+}
+
+function projectProgressSeries(repository: EpcRepository, projectId: string) {
+  const phases = repository.projectPhases
+    .filter((phase) => phase.projectId === projectId)
+    .sort((a, b) => a.sequence - b.sequence)
+    .map((phase) => phase.progressPct);
+  const overall = repository.progressSnapshots.find((snapshot) => snapshot.projectId === projectId)?.overallPct;
+  return overall === undefined ? phases : [...phases, overall];
+}
+
 export function buildWorkbookProjection(repository: EpcRepository, mode = "VIEW" as "VIEW" | "EDIT"): WorkbookViewModel {
   const readOnly = mode === "VIEW";
   const commitHash = repository.branches[0]?.headCommitHash ?? repository.commits[0]?.hash ?? "none";
+  const workbookMonths = monthRange(DEFAULT_START_MONTH, 12);
   const generatedFrom = {
     branch: repository.branches[0]?.name ?? "base",
     commitHash,
@@ -146,9 +170,18 @@ export function buildWorkbookProjection(repository: EpcRepository, mode = "VIEW"
         { id: "pm", title: "PM", type: "TEXT", editable: true },
         { id: "location", title: "Location", type: "TEXT", editable: true },
         { id: "contractAmount", title: "Contract Amount", type: "MONEY", editable: true },
+        { id: "currency", title: "Currency", type: "CURRENCY" },
+        { id: "cashIn12M", title: "Cash In 12M", type: "SPARKLINE" },
+        { id: "netCash12M", title: "Net Cash 12M", type: "SPARKLINE" },
+        { id: "progressTrend", title: "Progress Trend", type: "SPARKLINE" },
         { id: "status", title: "Status", type: "STATUS", editable: true }
       ],
-      rows: repository.projects.map((project) => ({ ...project }))
+      rows: repository.projects.map((project) => ({
+        ...project,
+        cashIn12M: projectCashflowSeries(repository, project.id, workbookMonths, "INFLOW"),
+        netCash12M: projectCashflowSeries(repository, project.id, workbookMonths, "NET"),
+        progressTrend: projectProgressSeries(repository, project.id)
+      }))
     },
     {
       sheetId: "project-phases",
