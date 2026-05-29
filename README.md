@@ -9,18 +9,19 @@ The MVP is a strictly frontend, static-deployable web app for managing EPC portf
 - React + TypeScript + Vite
 - IndexedDB local repository
 - JSON repo snapshot import/export
-- XLSX/CSV template import/export
+- Excel `.xlsx` full master and periodic update import/export
+- CSV current-sheet import/export as secondary support
 - Git-like in-app commit, branch, tag, diff, and revert
-- Read-only Glide workbook
+- Glide Workbook with View/Edit Mode toggle
 - D3 dashboards and EPC control timeline
 - shadcn/ui, Lucide icons, Roboto, and `#1565C0` visual system
 
 Core decisions from the reference docs:
 
 - Base currency is `EUR`.
-- Workbook/grid is a read-only projection and IO surface, not the source of truth.
-- Canonical domain data is the only business fact source.
-- All writes go through Import / Controlled Form -> Validation -> Business Diff -> Commit.
+- Workbook/grid defaults to View Mode and can switch to controlled Edit Mode.
+- Workbook cells are not the source of truth; canonical domain data is the only business fact source.
+- Workbook edits, imports, and controlled forms all write through Validation -> Business Diff -> Commit.
 - Import delete must be explicit with `deleteFlag = TRUE`.
 - Default guarantee exposure metric is Issued Exposure, with Required Exposure and Fee Forecast toggles.
 
