@@ -8,19 +8,21 @@
 Workbook 是：
 
 ```text
-只读业务数据展示层
+View Mode 业务数据展示层
+Edit Mode 受控业务数据维护入口
 批量 IO 入口
 validation / diff 展示层
-可复制、筛选、导出的分析表格
+可复制、筛选、编辑、显式删除、导出的分析表格
 ```
 
 Workbook 不是：
 
 ```text
-可编辑 spreadsheet
+自由 spreadsheet
 公式引擎
 事实源
 D3 的数据源
+绕过 validation / diff / commit 的直接写入入口
 ```
 
 ## 2. 默认技术
@@ -43,6 +45,11 @@ Scenario selector
 Commit/tag indicator
 Horizon selector
 Currency indicator: EUR，后续多币种扩展时再升级为 selector, default EUR
+View/Edit mode toggle
+Add row button (Edit Mode only)
+Mark delete button (Edit Mode only)
+Save to Staging button (Edit Mode only)
+Discard edits button (Edit Mode only)
 Import button
 Export button
 Validate button
@@ -66,20 +73,15 @@ Validation Errors
 Version Diff
 ```
 
-## 5. Read-only 行为
+## 5. View/Edit Mode 行为
 
-禁止：
+默认模式：
 
 ```text
-直接改单元格
-删除行
-插入行
-粘贴覆盖数据
-拖拽填充
-写公式
+View Mode
 ```
 
-允许：
+View Mode 允许：
 
 ```text
 排序
@@ -94,10 +96,56 @@ hover tooltip
 选中行
 ```
 
-用户尝试编辑时提示：
+Edit Mode 允许：
 
 ```text
-This workbook is read-only. To update data, import a template or create a controlled adjustment.
+修改允许字段
+新增支持的业务行
+显式标记删除支持的业务行
+撤销未提交的删除标记
+Save to Staging
+Discard edits
+```
+
+Edit Mode 禁止：
+
+```text
+编辑 sourceCommit / hash / id / createdAt / updatedAt
+编辑 Validation Errors / Version Diff / Commit History 等审计 sheet
+编辑系统生成且无 canonical entity 映射的 projection rows
+用粘贴绕过 schema mapper 和 validation
+写公式
+直接写入 IndexedDB repository stores
+```
+
+用户尝试编辑锁定单元格时提示：
+
+```text
+This cell is locked. Workbook edits must target editable business fields and be committed through validation and diff.
+```
+
+用户保存编辑时：
+
+```text
+WorkbookEditSession
+→ Validation
+→ Business Diff
+→ Required commit message
+→ Commit
+```
+
+## 5.1 Editable Sheet Scope
+
+| Sheet | Edit fields | Add row | Explicit delete |
+|---|---|---:|---:|
+| Project Register | Yes, except audit/system fields | Yes | No in MVP |
+| Project Phases | Yes, except audit/system fields | Yes | Yes |
+| Milestone Receivable Plan | Yes, except audit/system fields | Yes | Yes |
+| Guarantee Register | Yes, except audit/system fields | Yes | Yes |
+| Cashflow Forecast | Manual adjustment and forecast/status fields only | Manual adjustment only | Manual adjustment only |
+| Progress Snapshot | Yes, except audit/system fields | Yes | No in MVP |
+| Validation Errors | No | No | No |
+| Version Diff | No | No | No |
 ```
 
 ## 6. 表格视觉规格
@@ -345,6 +393,12 @@ Canonical Data
 
 ```text
 Glide cells → Canonical Data
+```
+
+允许：
+
+```text
+Glide Edit Mode → WorkbookEditSession → StagingTransaction → Validation → BusinessDiff → Commit → Canonical Data
 ```
 
 ## 16. Interaction

@@ -10,9 +10,11 @@
 ```text
 React + TypeScript Web App
 IndexedDB 本地版本库
-只读 Glide Workbook
+Glide Workbook View/Edit Mode
 D3 Dashboard
-XLSX/CSV/JSON IO
+JSON repo snapshot IO
+Excel `.xlsx` template/report IO
+CSV current-sheet auxiliary IO
 Git-like versioning
 shadcn/lucide/Roboto/#1565C0 visual system
 ```
@@ -128,12 +130,21 @@ Validation Errors
 Version Diff
 Micro chart cells
 Export current view
+View/Edit mode toggle
+Workbook edit session
+Editable field metadata
+Add row / Mark delete / Undo delete
+Save to Staging
+Locked cell messaging
 ```
 
 验收：
 
 ```text
-Workbook 不可编辑
+Workbook 默认 View Mode
+可切换 Edit Mode
+Edit Mode 可修改允许字段、新增行、显式删除行
+编辑保存后进入 validation / diff / commit，不直接写入 repository
 可筛选/排序/复制/导出
 Project Code 点击打开详情
 Micro chart 正常显示
@@ -284,13 +295,28 @@ And business diff shows creates
 And commit writes data to repository
 ```
 
-### 5.2 Read-only Grid
+### 5.2 Workbook View/Edit Mode
 
 ```text
 Given Workbook is open
-When user tries to edit a cell
-Then no domain data changes
-And a read-only message is shown
+When user views a business sheet
+Then View Mode is active by default
+
+Given user switches to Edit Mode
+When user updates an editable business field
+Then canonical domain data does not change immediately
+And a WorkbookEditSession records the change
+And Save to Staging generates validation issues and business diff
+
+Given user marks a supported row for delete
+When user saves to staging
+Then a DELETE business diff is shown
+And the row is not removed from repository until commit
+
+Given user edits a locked field
+When the edit is attempted
+Then the edit is rejected
+And a locked-cell message is shown
 ```
 
 ### 5.3 Version Commit
@@ -361,7 +387,7 @@ Snapshot export/import: < 5s for MVP data
 | 风险 | 缓解 |
 |---|---|
 | 纯前端数据丢失 | JSON snapshot export、IndexedDB backup reminder |
-| 用户误以为表格可编辑 | 明确 read-only 状态和 import workflow |
+| 用户误以为 View Mode 会直接保存编辑 | 明确 View/Edit Mode、locked cell messaging、validation/diff/commit workflow |
 | 图表误导现金流连续性 | 月度现金流用 bar，保函默认 step/linear |
 | 多币种汇总错误 | MVP base currency 固定为 EUR；后续通过 FX table + currency display 扩展 |
 | 版本逻辑复杂 | 先实现 linear commit + branch/tag，再扩展 merge |
