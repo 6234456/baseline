@@ -14,5 +14,7 @@ export function formatCompactMoney(value: number, currency = "EUR") {
 }
 
 export function formatPercent(value: number) {
-  return `${Math.round(value)}%`;
+  const percent = Math.abs(value) <= 1 ? value * 100 : value;
+  const hasFraction = Math.abs(percent - Math.round(percent)) > 0.05;
+  return `${hasFraction && Math.abs(percent) < 10 ? percent.toFixed(1) : Math.round(percent)}%`;
 }

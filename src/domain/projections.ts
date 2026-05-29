@@ -2,6 +2,7 @@ import type {
   DashboardProjection,
   EpcRepository,
   Guarantee,
+  GuaranteeBankInterestDatum,
   GuaranteeExposureProjection,
   SheetViewModel,
   WorkbookViewModel
@@ -9,6 +10,12 @@ import type {
 import { monthBounds, monthKey, monthRange } from "../utils/date";
 
 const DEFAULT_START_MONTH = "2026-06";
+
+export function guaranteeAnnualInterest(guarantee: Pick<Guarantee, "issuedAmount" | "feeRate">) {
+  const issuedAmount = Number(guarantee.issuedAmount ?? 0);
+  const feeRate = Number(guarantee.feeRate ?? 0);
+  return Math.round(issuedAmount * feeRate);
+}
 
 function activeGuaranteeAmount(guarantee: Guarantee, month: string, mode: GuaranteeExposureOptions["valueMode"]) {
   if (guarantee.status === "CANCELLED") return 0;
@@ -20,7 +27,7 @@ function activeGuaranteeAmount(guarantee: Guarantee, month: string, mode: Guaran
   const active = startDate <= end && (!endDate || endDate >= start);
   if (!active) return 0;
   if (mode === "REQUIRED_EXPOSURE") return guarantee.requiredAmount;
-  if (mode === "FEE_FORECAST") return Math.round((guarantee.issuedAmount * guarantee.feeRate) / 12);
+  if (mode === "FEE_FORECAST") return Math.round(guaranteeAnnualInterest(guarantee) / 12);
   return guarantee.issuedAmount;
 }
 
@@ -72,6 +79,40 @@ export function buildGuaranteeExposure(
   );
 
   return { months, series, totalByMonth, currency: "EUR" };
+}
+
+export function buildGuaranteeBankInterest(repository: EpcRepository): GuaranteeBankInterestDatum[] {
+  const rowsByBank = new Map<string, GuaranteeBankInterestDatum>();
+
+  for (const guarantee of repository.guarantees) {
+    const bank = guarantee.bank || "No bank";
+    const current = rowsByBank.get(bank) ?? {
+      bank,
+      issuedExposure: 0,
+      annualInterest: 0,
+      monthlyInterest: 0,
+      weightedRate: 0,
+      activeGuaranteeCount: 0,
+      currency: "EUR" as const
+    };
+
+    if (guarantee.status === "ISSUED" && Number(guarantee.issuedAmount ?? 0) > 0) {
+      const annualInterest = guaranteeAnnualInterest(guarantee);
+      current.issuedExposure += Number(guarantee.issuedAmount ?? 0);
+      current.annualInterest += annualInterest;
+      current.activeGuaranteeCount += 1;
+    }
+
+    rowsByBank.set(bank, current);
+  }
+
+  return [...rowsByBank.values()]
+    .map((row) => ({
+      ...row,
+      monthlyInterest: Math.round(row.annualInterest / 12),
+      weightedRate: row.issuedExposure > 0 ? row.annualInterest / row.issuedExposure : 0
+    }))
+    .sort((a, b) => b.annualInterest - a.annualInterest || a.bank.localeCompare(b.bank));
 }
 
 export function buildDashboardProjection(repository: EpcRepository): DashboardProjection {
@@ -226,9 +267,14 @@ export function buildWorkbookProjection(repository: EpcRepository, mode = "VIEW"
         { id: "type", title: "Type", type: "TEXT", editable: true },
         { id: "issuedAmount", title: "Issued Amount", type: "MONEY", editable: true },
         { id: "bank", title: "Bank", type: "TEXT", editable: true },
+        { id: "feeRate", title: "Fee Rate", type: "PERCENT", editable: true },
+        { id: "annualInterest", title: "Annual Interest", type: "MONEY" },
         { id: "status", title: "Status", type: "STATUS", editable: true }
       ],
-      rows: repository.guarantees.map((guarantee) => ({ ...guarantee }))
+      rows: repository.guarantees.map((guarantee) => ({
+        ...guarantee,
+        annualInterest: guaranteeAnnualInterest(guarantee)
+      }))
     },
     {
       sheetId: "cashflow-forecast",

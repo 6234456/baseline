@@ -24,7 +24,13 @@ import {
   WalletCards
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { buildDashboardProjection, buildGuaranteeExposure, buildWorkbookProjection } from "./domain/projections";
+import {
+  buildDashboardProjection,
+  buildGuaranteeBankInterest,
+  buildGuaranteeExposure,
+  buildWorkbookProjection,
+  guaranteeAnnualInterest
+} from "./domain/projections";
 import { createSeedRepository } from "./domain/seed";
 import {
   commitStagingTransaction,
@@ -1247,12 +1253,21 @@ function App() {
       stackMode: "BANK",
       valueMode: "ISSUED_EXPOSURE"
     });
+    const interestForecast = buildGuaranteeExposure(repository, {
+      horizonMonths: 12,
+      stackMode: "BANK",
+      valueMode: "FEE_FORECAST"
+    });
+    const bankInterest = buildGuaranteeBankInterest(repository);
     const activeExposureCell =
       selectedExposureCell ?? {
         seriesKey: exposure.series[0]?.key ?? "Portfolio",
         month: exposure.months[0] ?? "2026-06",
         value: exposure.series[0]?.values[0] ?? 0
       };
+    const activeMonthIndex = Math.max(0, interestForecast.months.indexOf(activeExposureCell.month));
+    const activeMonthlyInterest =
+      interestForecast.series.find((series) => series.key === activeExposureCell.seriesKey)?.values[activeMonthIndex] ?? 0;
 
     return (
       <>
@@ -1295,6 +1310,39 @@ function App() {
             <strong>{activeExposureCell.month}</strong>
             <span>{activeExposureCell.seriesKey}</span>
             <span>{formatCompactMoney(activeExposureCell.value)}</span>
+            <span>Monthly interest {formatMoney(activeMonthlyInterest)}</span>
+          </div>
+        </section>
+        <section className="panel">
+          <div className="panel-header">
+            <h2>Bank Interest</h2>
+            <span className="panel-meta">Issued guarantees, annualized</span>
+          </div>
+          <div className="data-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Bank</th>
+                  <th>Issued Exposure</th>
+                  <th>Weighted Rate</th>
+                  <th>Annual Interest</th>
+                  <th>Monthly Interest</th>
+                  <th>Active</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bankInterest.map((row) => (
+                  <tr key={row.bank} data-testid={`bank-interest-${row.bank}`}>
+                    <td>{row.bank}</td>
+                    <td>{formatMoney(row.issuedExposure)}</td>
+                    <td>{formatPercent(row.weightedRate)}</td>
+                    <td>{formatMoney(row.annualInterest)}</td>
+                    <td>{formatMoney(row.monthlyInterest)}</td>
+                    <td>{row.activeGuaranteeCount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </section>
         <section className="panel">
@@ -1310,6 +1358,8 @@ function App() {
                   <th>Type</th>
                   <th>Bank</th>
                   <th>Issued</th>
+                  <th>Fee Rate</th>
+                  <th>Annual Interest</th>
                   <th>Expiry</th>
                   <th>Status</th>
                 </tr>
@@ -1321,6 +1371,8 @@ function App() {
                     <td>{guarantee.type}</td>
                     <td>{guarantee.bank}</td>
                     <td>{formatMoney(guarantee.issuedAmount)}</td>
+                    <td>{formatPercent(guarantee.feeRate)}</td>
+                    <td>{formatMoney(guaranteeAnnualInterest(guarantee))}</td>
                     <td>{guarantee.expiryDate ?? "-"}</td>
                     <td><span className={`status-pill ${statusClass(guarantee.status)}`}>{guarantee.status}</span></td>
                   </tr>

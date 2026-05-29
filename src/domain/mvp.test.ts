@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDashboardProjection, buildGuaranteeExposure } from "./projections";
+import { buildDashboardProjection, buildGuaranteeExposure, buildWorkbookProjection } from "./projections";
 import {
   commitStagingTransaction,
   createWorkbookEditSession,
@@ -125,6 +125,19 @@ describe("EPC Control Console MVP domain", () => {
     expect(exposure.series.at(-1)?.key).toBe("Others");
   });
 
+  it("projects guarantee bank interest fields into the workbook", () => {
+    const repository = createSeedRepository();
+    const workbook = buildWorkbookProjection(repository);
+    const guaranteeSheet = workbook.sheets.find((sheet) => sheet.sheetId === "guarantee-register");
+    const firstGuarantee = repository.guarantees[0];
+    const firstRow = guaranteeSheet?.rows.find((row) => row.id === firstGuarantee.id);
+
+    expect(guaranteeSheet?.columns.map((column) => column.title)).toEqual(
+      expect.arrayContaining(["Fee Rate", "Annual Interest"])
+    );
+    expect(firstRow?.annualInterest).toBe(Math.round(firstGuarantee.issuedAmount * firstGuarantee.feeRate));
+  });
+
   it("round-trips repository snapshots through JSON", () => {
     const repository = createSeedRepository();
     const json = exportRepoSnapshot(repository, "Local User");
@@ -157,6 +170,9 @@ describe("EPC Control Console MVP domain", () => {
     const restored = await importWorkbookXlsx(buffer);
     expect(restored.projects).toHaveLength(repository.projects.length);
     expect(restored.guarantees).toHaveLength(repository.guarantees.length);
+    expect((restored.guarantees[0] as { annualInterest?: number }).annualInterest).toBe(
+      Math.round(repository.guarantees[0].issuedAmount * repository.guarantees[0].feeRate)
+    );
     expect(restored.settings.baseCurrency).toBe("EUR");
   });
 });

@@ -109,6 +109,21 @@ describe("EPC Control Console app", () => {
     expect(screen.getByText("Exposure cell")).toBeInTheDocument();
   });
 
+  it("shows guarantee interest by bank", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open guarantees/i }));
+
+    expect(screen.getByText("Bank Interest")).toBeInTheDocument();
+    expect(screen.getByText("Weighted Rate")).toBeInTheDocument();
+    expect(screen.getByTestId("bank-interest-ING")).toHaveTextContent(/€/);
+    expect(screen.getByText("Fee Rate")).toBeInTheDocument();
+    expect(screen.getAllByText("Annual Interest").length).toBeGreaterThan(1);
+
+    fireEvent.click(screen.getByTestId("guarantee-heatmap-ING-2026-09"));
+    expect(screen.getByText("Exposure cell").parentElement).toHaveTextContent(/Monthly interest €/);
+  });
+
   it("uses the cashflow line for cumulative balance instead of duplicating monthly net bars", () => {
     render(<App />);
 

@@ -283,6 +283,16 @@ export interface GuaranteeExposureProjection {
   currency: Currency;
 }
 
+export interface GuaranteeBankInterestDatum {
+  bank: string;
+  issuedExposure: number;
+  annualInterest: number;
+  monthlyInterest: number;
+  weightedRate: number;
+  activeGuaranteeCount: number;
+  currency: Currency;
+}
+
 export interface DashboardProjection {
   kpis: {
     totalContractValue: number;

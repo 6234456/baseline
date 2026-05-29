@@ -12,7 +12,7 @@ import type {
   VersionCommit,
   VersionTag
 } from "../domain/types";
-import { buildDashboardProjection } from "../domain/projections";
+import { buildDashboardProjection, guaranteeAnnualInterest } from "../domain/projections";
 import { createSeedRepository } from "../domain/seed";
 
 type ExcelWorkbook = ExcelJS.Workbook;
@@ -45,6 +45,13 @@ function appendJsonSheet(workbook: ExcelWorkbook, rows: Array<{ key: string; jso
 
 function hideInternalSource<T extends { sourceCommitId?: unknown }>(rows: T[]) {
   return rows.map(({ sourceCommitId: _sourceCommitId, ...row }) => row);
+}
+
+function guaranteeExportRows(guarantees: Guarantee[]) {
+  return guarantees.map((guarantee) => ({
+    ...guarantee,
+    annualInterest: guaranteeAnnualInterest(guarantee)
+  }));
 }
 
 function toArrayBuffer(buffer: ExcelBuffer): ArrayBuffer {
@@ -115,7 +122,7 @@ export async function exportWorkbookXlsx(repository: EpcRepository) {
   appendSheet(workbook, hideInternalSource(repository.projects), "Project Register");
   appendSheet(workbook, hideInternalSource(repository.projectPhases), "Project Phases");
   appendSheet(workbook, hideInternalSource(repository.milestones), "Milestone Plan");
-  appendSheet(workbook, hideInternalSource(repository.guarantees), "Guarantee Register");
+  appendSheet(workbook, hideInternalSource(guaranteeExportRows(repository.guarantees)), "Guarantee Register");
   appendSheet(workbook, hideInternalSource(repository.cashflowItems), "Cashflow Forecast");
   appendSheet(workbook, hideInternalSource(repository.progressSnapshots), "Progress Snapshot");
   appendSheet(workbook, [], "Validation Errors");
