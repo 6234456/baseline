@@ -263,17 +263,16 @@ function CashflowChart({ data }: { data: ReturnType<typeof buildDashboardProject
   const padding = { top: 18, right: 24, bottom: 42, left: 54 };
   const innerWidth = chartWidth - padding.left - padding.right;
   const innerHeight = chartHeight - padding.top - padding.bottom;
-  const maxValue = maxAbs(data.flatMap((month) => [month.inflow, month.outflow, month.net]));
+  const maxValue = maxAbs(data.flatMap((month) => [month.inflow, month.outflow, month.cumulative]));
   const slot = innerWidth / data.length;
   const zeroY = padding.top + innerHeight * 0.72;
   const yFor = (value: number) => zeroY - (value / maxValue) * innerHeight * 0.64;
-  const netPath = data
-    .map((month, index) => {
-      const x = padding.left + slot * index + slot / 2;
-      const y = yFor(month.net);
-      return `${index === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
-    })
-    .join(" ");
+  const cumulativePath = linePath(
+    data.map((month, index) => ({
+      x: padding.left + slot * index + slot / 2,
+      y: yFor(month.cumulative)
+    }))
+  );
   const selected = data.find((month) => month.month === selectedMonth) ?? data[0];
 
   return (
@@ -335,20 +334,28 @@ function CashflowChart({ data }: { data: ReturnType<typeof buildDashboardProject
             </g>
           );
         })}
-        <path d={netPath} className="net-line" />
+        <path
+          d={cumulativePath}
+          className="cumulative-line"
+          data-testid="cashflow-cumulative-line"
+          role="img"
+          aria-label="Cumulative net cash balance trend"
+        >
+          <title>Cumulative net cash balance trend</title>
+        </path>
         {data.map((month, index) => (
           <circle
-            key={`${month.month}-net`}
+            key={`${month.month}-cumulative`}
             cx={padding.left + slot * index + slot / 2}
-            cy={yFor(month.net)}
+            cy={yFor(month.cumulative)}
             r={selected?.month === month.month ? "5" : "3.5"}
-            className={`net-dot ${selected?.month === month.month ? "active" : ""}`}
+            className={`cumulative-dot ${selected?.month === month.month ? "active" : ""}`}
           >
-            <title>{`${month.month} net ${formatCompactMoney(month.net)}`}</title>
+            <title>{`${month.month} cumulative ${formatCompactMoney(month.cumulative)}`}</title>
           </circle>
         ))}
         <text x={padding.left} y="18" className="chart-caption">
-          Forecast cashflow by month
+          Monthly cash movement and cumulative balance
         </text>
       </svg>
       {selected && (
@@ -358,6 +365,7 @@ function CashflowChart({ data }: { data: ReturnType<typeof buildDashboardProject
           <span>In {formatCompactMoney(selected.inflow)}</span>
           <span>Out {formatCompactMoney(selected.outflow)}</span>
           <span className={selected.net >= 0 ? "positive" : "negative"}>Net {formatCompactMoney(selected.net)}</span>
+          <span>Cumulative {formatCompactMoney(selected.cumulative)}</span>
         </div>
       )}
     </div>

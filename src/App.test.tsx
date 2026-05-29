@@ -1,6 +1,28 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import App from "./App";
+import { buildDashboardProjection } from "./domain/projections";
+import { createSeedRepository } from "./domain/seed";
+
+function expectedCashflowPath(values: number[], scaleValues: number[]) {
+  const chartWidth = 820;
+  const chartHeight = 260;
+  const padding = { top: 18, right: 24, bottom: 42, left: 54 };
+  const innerWidth = chartWidth - padding.left - padding.right;
+  const innerHeight = chartHeight - padding.top - padding.bottom;
+  const maxValue = Math.max(1, ...scaleValues.map((value) => Math.abs(value)));
+  const slot = innerWidth / values.length;
+  const zeroY = padding.top + innerHeight * 0.72;
+  const yFor = (value: number) => zeroY - (value / maxValue) * innerHeight * 0.64;
+
+  return values
+    .map((value, index) => {
+      const x = padding.left + slot * index + slot / 2;
+      const y = yFor(value);
+      return `${index === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
+    })
+    .join(" ");
+}
 
 describe("EPC Control Console app", () => {
   it("renders the MVP shell and dashboard context", () => {
@@ -85,5 +107,21 @@ describe("EPC Control Console app", () => {
     fireEvent.click(screen.getByRole("button", { name: /open guarantees/i }));
     fireEvent.click(screen.getByTestId("guarantee-heatmap-ING-2026-09"));
     expect(screen.getByText("Exposure cell")).toBeInTheDocument();
+  });
+
+  it("uses the cashflow line for cumulative balance instead of duplicating monthly net bars", () => {
+    render(<App />);
+
+    const dashboard = buildDashboardProjection(createSeedRepository());
+    const line = screen.getByTestId("cashflow-cumulative-line");
+    const linePath = line.getAttribute("d");
+    const scaleValues = dashboard.cashflow.flatMap((month) => [month.inflow, month.outflow, month.cumulative]);
+
+    expect(linePath).toBe(expectedCashflowPath(dashboard.cashflow.map((month) => month.cumulative), scaleValues));
+    expect(linePath).not.toBe(expectedCashflowPath(dashboard.cashflow.map((month) => month.net), scaleValues));
+    expect(line).toHaveAccessibleName(/cumulative net cash balance/i);
+
+    fireEvent.click(screen.getByTestId("cashflow-point-2026-08"));
+    expect(screen.getAllByText(/Cumulative /).some((element) => element.tagName === "SPAN")).toBe(true);
   });
 });

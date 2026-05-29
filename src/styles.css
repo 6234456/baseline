@@ -322,21 +322,21 @@ code {
   filter: drop-shadow(0 2px 4px rgba(21, 101, 192, 0.24));
 }
 
-.net-line,
+.cumulative-line,
 .exposure-line {
   fill: none;
   stroke: #0b4f9f;
   stroke-width: 2.4;
 }
 
-.net-dot,
+.cumulative-dot,
 .exposure-dot {
   fill: #ffffff;
   stroke: #1565c0;
   stroke-width: 2;
 }
 
-.net-dot.active,
+.cumulative-dot.active,
 .exposure-dot.active {
   fill: #1565c0;
   stroke: #ffffff;
