@@ -146,7 +146,6 @@ WorkbookEditSession
 | Progress Snapshot | Yes, except audit/system fields | Yes | No in MVP |
 | Validation Errors | No | No | No |
 | Version Diff | No | No | No |
-```
 
 ## 6. 表格视觉规格
 
