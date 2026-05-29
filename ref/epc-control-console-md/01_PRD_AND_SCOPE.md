@@ -22,8 +22,8 @@ EPC 项目组合控制台
 系统目标不是替代 Excel，而是提供：
 
 ```text
-Excel-like 只读展示
-受控 IO
+Excel-like View/Edit Workbook
+受控 Workbook 编辑与 IO
 业务规则校验
 现金流预测
 保函敞口管理
@@ -77,8 +77,10 @@ commit message = required
 
 ```text
 禁止把单元格作为事实源。
-禁止直接改单元格保存业务数据。
+禁止直接改单元格并绕过版本提交保存业务数据。
 禁止 D3 图表读取 sheet cells。
+允许在 Workbook Edit Mode 中修改受控字段、新增行、显式删除行。
+Edit Mode 修改必须进入 Validation → Business Diff → Commit。
 ```
 
 ### 5.2 写入必须受控
@@ -86,7 +88,7 @@ commit message = required
 所有写入走：
 
 ```text
-Import / Controlled Form
+Workbook Edit / Import / Controlled Form
 → Validation
 → Business Diff
 → Commit
@@ -133,13 +135,13 @@ MVP 应包含：
 4. 保函模型
 5. 现金流模型
 6. IndexedDB 本地存储
-7. JSON repo import/export
-8. XLSX/CSV 模板导入
-9. XLSX/CSV 当前视图导出
+7. JSON repo snapshot import/export
+8. Excel `.xlsx` Full Master Data / Periodic Update 模板导入
+9. Excel `.xlsx` workbook/report 导出，CSV 当前 sheet 导出作为辅助
 10. 导入校验
 11. Business diff 预览
 12. Commit / branch / tag / revert
-13. 只读 Workbook / Glide Grid
+13. Glide Workbook View/Edit Mode：View Mode 默认，Edit Mode 支持字段修改、新增行、显式删除行
 14. 表格内 micro chart
 15. D3 cashflow bar + cumulative line
 16. D3 guarantee stacked area
@@ -172,7 +174,7 @@ Excel 公式引擎
 | 视图 | 功能 |
 |---|---|
 | Portfolio Dashboard | 组合级 KPI、现金流、保函敞口、风险 |
-| Workbook | 只读项目台账、节点、现金流、保函、diff、validation |
+| Workbook | View/Edit 项目台账、节点、现金流、保函；diff、validation 和审计 sheet 始终只读 |
 | EPC Control Timeline | 项目/阶段/节点/收款/保函时间线 |
 | Cashflow Dashboard | 月度现金流、累计现金流、场景比较、逾期 |
 | Guarantee Dashboard | 保函敞口、stacked area、到期热力图、银行额度 |
@@ -236,15 +238,15 @@ MVP 验收至少满足：
 
 ```text
 1. 可导入 20 个 EPC 项目的主数据和节点数据
-2. 可生成只读 Project Register / Milestone / Cashflow / Guarantee workbook
+2. 可生成 Project Register / Milestone / Cashflow / Guarantee workbook，并支持 View/Edit Mode 切换
 3. 可根据 milestone 自动生成 cashflow forecast
 4. 可根据 guarantee rule 自动生成 guarantee demand/exposure
 5. 可展示多项目保函敞口 stacked area
 6. 可展示月度现金流柱状图和累计曲线
 7. 可导入 periodic update 并生成 validation errors
 8. 可查看业务 diff 后提交 commit
-9. 可创建 branch / tag / revert
-10. 可导出 JSON repo snapshot 并重新导入恢复数据
-11. 所有写入均有 commit 记录
-12. 表格层不可直接编辑业务数据
+9. 可在 Workbook Edit Mode 修改允许字段、新增行、显式删除行，并在 commit 前查看 validation 和 business diff
+10. 可创建 branch / tag / revert
+11. 可导出 JSON repo snapshot 并重新导入恢复数据
+12. 所有写入均有 commit 记录
 ```

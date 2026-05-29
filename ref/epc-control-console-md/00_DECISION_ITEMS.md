@@ -10,7 +10,7 @@
 
 | 编号 | 事项 | 当前决策 |
 |---|---|---|
-| D-001 | 表格层定位 | Excel-like 只读展示层 + IO 界面，不允许直接编辑单元格 |
+| D-001 | 表格层定位 | Excel-like View/Edit Workbook + IO 界面；默认 View Mode，Edit Mode 的单元格修改必须进入 staging、validation、diff、commit |
 | D-002 | 主 Grid | Glide Data Grid |
 | D-003 | Univer | 不作为 MVP 默认依赖，未来可做 adapter |
 | D-004 | RevoGrid | Project/Gantt 示例可借鉴视觉与交互，不作为 MVP 主依赖 |
@@ -41,6 +41,8 @@
 | D-110 | spline 使用规则 | 月度现金流用 bar；累计现金流用 line；保函敞口默认 step/linear；smooth 仅作为选项 | 避免把节点/区间型财务事件误表现为连续流 |
 | D-111 | 部署方式 | 静态站点部署 | 支持内部静态服务器、对象存储/CDN 或 Vercel/Netlify 类托管 |
 | D-112 | 深色模式 | MVP 不做 dark mode，只保留 token 结构 | 优先支持浅色财务表格和截图场景 |
+| D-113 | Workbook 编辑模式 | MVP 支持 View/Edit toggle；Edit Mode 可修改字段、新增行、显式删除行，但不得直接写入 canonical repository | Workbook 写入进入 WorkbookEditSession / StagingTransaction，再 validation、diff、commit |
+| D-114 | JSON/Excel IO 优先级 | JSON repo snapshot 和 Excel `.xlsx` 模板/报表为主；CSV 为单表辅助格式 | GitHub Pages 静态部署下通过文件上传/下载完成备份、恢复和业务模板流转 |
 
 ## 3. 币种执行规则
 
