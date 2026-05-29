@@ -68,6 +68,13 @@ Recommended reading order:
 
 The MVP is configured for GitHub Pages by keeping the app as a static Vite build with base path `/baseline/`.
 
+The Pages workflow publishes the built `dist/` artifact to the `gh-pages` branch. In repository settings, set Pages to deploy from:
+
+```text
+Branch: gh-pages
+Folder: / (root)
+```
+
 CI and Pages workflows live in:
 
 ```text
