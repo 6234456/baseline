@@ -121,6 +121,7 @@ Diff viewer
 ```text
 Glide Workbook shell
 Sheet tabs
+Portfolio Summary
 Project Register
 Milestone Receivable Plan
 Guarantee Register
@@ -143,7 +144,7 @@ Locked cell messaging
 ```text
 Workbook 默认 View Mode
 可切换 Edit Mode
-Edit Mode 可修改允许字段、新增行、显式删除行
+Edit Mode 可在支持的 sheet/row 上修改允许字段、新增行、显式删除行
 编辑保存后进入 validation / diff / commit，不直接写入 repository
 可筛选/排序/复制/导出
 Project Code 点击打开详情
@@ -306,7 +307,7 @@ Given user switches to Edit Mode
 When user updates an editable business field
 Then canonical domain data does not change immediately
 And a WorkbookEditSession records the change
-And Save to Staging generates validation issues and business diff
+And Save to Staging runs validation and shows validation results and business diff
 
 Given user marks a supported row for delete
 When user saves to staging

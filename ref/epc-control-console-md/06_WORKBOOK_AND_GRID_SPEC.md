@@ -138,6 +138,7 @@ WorkbookEditSession
 
 | Sheet | Edit fields | Add row | Explicit delete |
 |---|---|---:|---:|
+| Portfolio Summary | No | No | No |
 | Project Register | Yes, except audit/system fields | Yes | No in MVP |
 | Project Phases | Yes, except audit/system fields | Yes | Yes |
 | Milestone Receivable Plan | Yes, except audit/system fields | Yes | Yes |
