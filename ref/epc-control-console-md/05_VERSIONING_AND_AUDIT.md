@@ -34,11 +34,11 @@ MVP 不要求真实 Git 仓库，但版本概念要接近 GitHub 工作流。
 ## 3. 工作流
 
 ```text
-导入文件或受控操作
+Workbook Edit、文件导入或受控操作
 → Validation
 → StagingTransaction
 → BusinessDiff
-→ 用户确认
+→ 用户确认并填写 commit message
 → Commit
 → 更新 branch head
 → 刷新 projection
@@ -301,4 +301,6 @@ Export snapshot from commit/tag
 5. 导入文件名和导入时间必须记录
 6. Commit author 必须记录
 7. 已导出的 repo snapshot 必须包含 schemaVersion 和 commit/tag 信息
+8. Workbook Edit Mode 的字段修改、新增行、显式删除行必须记录为 BusinessDiff
+9. WorkbookEditSession 不可绕过 commit 写入 canonical repository
 ```

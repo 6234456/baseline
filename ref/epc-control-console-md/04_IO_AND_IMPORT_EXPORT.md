@@ -8,20 +8,20 @@
 MVP 默认 `baseCurrency = EUR`。导入导出模板暂按 EUR 作为汇总和展示币种；模板中的 `currency` 字段应默认填入 `EUR`。后续如扩展多币种，必须启用手工 FX table 或自动 FX provider 后再进入组合级汇总视图。
 
 ```text
-Workbook 是 IO 入口，不是编辑器。
-用户可以下载模板、导入模板、导出视图。
-导入不能直接覆盖数据，必须进入 staging。
-导出来自 projection 或 domain snapshot，不从 DOM 抓取。
+Workbook 是 View/Edit 工作台和 IO 入口，不是 canonical 数据源。
+用户可以在 Edit Mode 进行受控编辑，也可以下载模板、导入模板、导出视图。
+Workbook 编辑和导入都不能直接覆盖 repository，必须进入 staging。
+导出来自 projection 或 domain snapshot，不从 DOM、canvas 或 Glide cells 抓取。
 ```
 
 ## 2. 支持文件类型
 
-| 类型 | 用途 |
-|---|---|
-| XLSX | 标准业务模板，适合 PM/财务使用 |
-| CSV | 单表快速导入导出 |
-| JSON | repo snapshot、系统备份、版本库迁移 |
-| ZIP | 可选，用于打包 JSON repo + attachments，MVP 可不做 |
+| 类型 | 用途 | MVP 优先级 |
+|---|---|---|
+| JSON | repo snapshot、系统备份、版本库迁移 | Primary |
+| XLSX | 标准业务模板、完整 workbook/report，适合 PM/财务使用 | Primary |
+| CSV | 单表快速导入导出、当前 sheet 辅助流转 | Secondary |
+| ZIP | 可选，用于打包 JSON repo + attachments，MVP 可不做 | Optional |
 
 ## 2.1 MVP IO Defaults
 
@@ -257,6 +257,22 @@ Instructions
 13. Projection Engine 刷新所有视图
 ```
 
+### 6.1 Workbook Edit 流程
+
+```text
+1. 用户切换到 Edit Mode
+2. 用户修改允许字段、新增行或标记删除行
+3. 系统记录 WorkbookEditSession
+4. 用户点击 Save to Staging
+5. Validation Engine 校验 edit session
+6. 若无 blocking errors，生成 Business Diff
+7. 用户输入 commit message
+8. Commit Engine 写入 repository
+9. Projection Engine 刷新 Workbook / Dashboard / Timeline
+```
+
+Edit Mode 删除必须显式标记，且在 commit 前显示 DELETE diff。
+
 ## 7. 导入冲突处理
 
 默认规则：
@@ -342,8 +358,8 @@ bank 为空，无法计算银行额度占用
 
 | Export | 内容 |
 |---|---|
-| Export Current View | 当前 Workbook sheet 筛选后的投影 |
-| Export Full Portfolio Workbook | 全量只读 workbook |
+| Export Current View | 当前 Workbook sheet 筛选后的投影，支持 Excel `.xlsx`，CSV 为辅助 |
+| Export Full Portfolio Workbook | 全量 workbook/report，Excel `.xlsx` 为主 |
 | Export Cashflow Forecast | 现金流预测表 |
 | Export Guarantee Register | 保函登记表 |
 | Export Guarantee Exposure | 保函敞口明细和汇总 |
