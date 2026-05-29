@@ -141,7 +141,7 @@ MVP 应包含：
 10. 导入校验
 11. Business diff 预览
 12. Commit / branch / tag / revert
-13. Glide Workbook View/Edit Mode：View Mode 默认，Edit Mode 支持字段修改、新增行、显式删除行
+13. Glide Workbook View/Edit Mode：View Mode 默认，Edit Mode 支持在允许的 sheet/row 上修改字段、新增行、显式删除行
 14. 表格内 micro chart
 15. D3 cashflow bar + cumulative line
 16. D3 guarantee stacked area

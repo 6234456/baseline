@@ -128,6 +128,7 @@ This cell is locked. Workbook edits must target editable business fields and be 
 
 ```text
 WorkbookEditSession
+→ StagingTransaction
 → Validation
 → Business Diff
 → Required commit message

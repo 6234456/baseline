@@ -276,7 +276,7 @@ releaseDate exists → GUARANTEE_RELEASED
 
 ```text
 Canonical Data
-   ├── Workbook Projection → Read-only Sheet
+   ├── Workbook Projection → View/Edit Workbook sheets
    ├── Timeline Projection → EPC Control Timeline
    ├── Chart Projection → D3 Dashboard
    └── Export Projection → XLSX / CSV / JSON

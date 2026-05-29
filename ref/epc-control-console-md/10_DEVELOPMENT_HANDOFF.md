@@ -72,7 +72,9 @@ Basic migrations
 交付：
 
 ```text
-XLSX/CSV parser adapter
+JSON repo adapter / snapshot import-export
+XLSX parser/writer adapter
+CSV single-sheet auxiliary adapter
 Full Master Data Template export
 Periodic Update Template export
 ImportBatch mapper
@@ -356,7 +358,7 @@ And commit history, branches, tags are available
 TypeScript strict mode preferred
 No direct DOM extraction for export
 No chart reads from grid cells
-No grid edit writes to storage
+No grid edit writes directly to canonical repository/domain stores
 All money uses centralized formatter
 All dates use ISO storage format
 All validation rules unit tested
