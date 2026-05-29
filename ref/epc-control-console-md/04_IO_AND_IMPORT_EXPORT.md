@@ -261,7 +261,7 @@ Instructions
 
 ```text
 1. 用户切换到 Edit Mode
-2. 用户修改允许字段、新增行或标记删除行
+2. 用户在支持的 sheet/row 上修改允许字段、新增行或标记删除行
 3. 系统记录 WorkbookEditSession
 4. 用户点击 Save to Staging
 5. Validation Engine 校验 edit session

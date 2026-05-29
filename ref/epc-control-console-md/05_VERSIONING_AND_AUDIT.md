@@ -301,6 +301,6 @@ Export snapshot from commit/tag
 5. 导入文件名和导入时间必须记录
 6. Commit author 必须记录
 7. 已导出的 repo snapshot 必须包含 schemaVersion 和 commit/tag 信息
-8. Workbook Edit Mode 的字段修改、新增行、显式删除行必须记录为 BusinessDiff
+8. Workbook Edit Mode 在支持的 sheet/row 上产生的字段修改、新增行、显式删除行必须记录为 BusinessDiff
 9. WorkbookEditSession 不可绕过 commit 写入 canonical repository
 ```

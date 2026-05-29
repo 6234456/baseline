@@ -79,7 +79,7 @@ commit message = required
 禁止把单元格作为事实源。
 禁止直接改单元格并绕过版本提交保存业务数据。
 禁止 D3 图表读取 sheet cells。
-允许在 Workbook Edit Mode 中修改受控字段、新增行、显式删除行。
+允许在 Workbook Edit Mode 中对允许的 sheet/row 修改受控字段、新增行、显式删除行。
 Edit Mode 修改必须进入 Validation → Business Diff → Commit。
 ```
 
@@ -245,7 +245,7 @@ MVP 验收至少满足：
 6. 可展示月度现金流柱状图和累计曲线
 7. 可导入 periodic update 并生成 validation errors
 8. 可查看业务 diff 后提交 commit
-9. 可在 Workbook Edit Mode 修改允许字段、新增行、显式删除行，并在 commit 前查看 validation 和 business diff
+9. 可在 Workbook Edit Mode 对允许的 sheet/row 修改字段、新增行、显式删除行，并在 commit 前查看 validation 和 business diff
 10. 可创建 branch / tag / revert
 11. 可导出 JSON repo snapshot 并重新导入恢复数据
 12. 可导入 Excel `.xlsx` Full Master Data / Periodic Update 模板
