@@ -44,6 +44,7 @@ import type {
 } from "./domain/types";
 import { exportWorkbookXlsx, importWorkbookXlsx, downloadXlsx } from "./io/excel";
 import { exportRepoSnapshot, importRepoSnapshot } from "./io/snapshot";
+import { monthKey, monthRange } from "./utils/date";
 import { formatCompactMoney, formatMoney, formatPercent } from "./utils/format";
 import "./styles.css";
 
@@ -134,6 +135,20 @@ function monthLabel(month: string) {
   return `${monthNumber}/${year.slice(2)}`;
 }
 
+function monthsBetweenDates(startMs: number, endMs: number) {
+  const start = new Date(startMs);
+  const end = new Date(endMs);
+  return (end.getUTCFullYear() - start.getUTCFullYear()) * 12 + end.getUTCMonth() - start.getUTCMonth() + 1;
+}
+
+function timelineMonthTicks(startMs: number, endMs: number, maxTicks = 7) {
+  const startMonth = monthKey(new Date(startMs));
+  const count = Math.max(1, monthsBetweenDates(startMs, endMs));
+  const months = monthRange(startMonth, count);
+  const step = Math.max(1, Math.ceil(months.length / maxTicks));
+  return months.filter((_, index) => index % step === 0 || index === months.length - 1);
+}
+
 function workflowStatusLabel(status: StagingTransaction["status"] | "OPEN") {
   if (status === "READY_TO_COMMIT") return "Ready to apply";
   if (status === "STAGED") return "Reviewed";
@@ -168,6 +183,32 @@ function projectFromDraft(index: number): Project {
 function safeDate(value: string) {
   return new Date(`${value}T00:00:00.000Z`).getTime();
 }
+
+type AreaPoint = {
+  x: number;
+  y0: number;
+  y1: number;
+};
+
+function stackedAreaPath(points: AreaPoint[]) {
+  if (!points.length) return "";
+  const upper = points
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y1.toFixed(1)}`)
+    .join(" ");
+  const lower = [...points]
+    .reverse()
+    .map((point) => `L ${point.x.toFixed(1)} ${point.y0.toFixed(1)}`)
+    .join(" ");
+  return `${upper} ${lower} Z`;
+}
+
+function linePath(points: Array<{ x: number; y: number }>) {
+  return points
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
+    .join(" ");
+}
+
+const STACK_COLORS = ["#1565C0", "#2E7D32", "#EF6C00", "#6A1B9A", "#00838F", "#C62828", "#455A64", "#9E9D24"];
 
 function CashflowChart({ data }: { data: ReturnType<typeof buildDashboardProjection>["cashflow"] }) {
   const [selectedMonth, setSelectedMonth] = useState(data[0]?.month ?? "");
@@ -279,6 +320,7 @@ function CashflowChart({ data }: { data: ReturnType<typeof buildDashboardProject
 
 function GuaranteeAreaChart({ repository }: { repository: EpcRepository }) {
   const [selectedMonth, setSelectedMonth] = useState("2026-06");
+  const [selectedSeriesKey, setSelectedSeriesKey] = useState<string | undefined>();
   const exposure = buildGuaranteeExposure(repository, {
     horizonMonths: 12,
     stackMode: "PROJECT",
@@ -293,24 +335,54 @@ function GuaranteeAreaChart({ repository }: { repository: EpcRepository }) {
   const slot = innerWidth / Math.max(1, exposure.months.length - 1);
   const xFor = (index: number) => padding.left + slot * index;
   const yFor = (value: number) => padding.top + innerHeight - (value / maxValue) * innerHeight;
-  const linePath = exposure.totalByMonth
-    .map((value, index) => `${index === 0 ? "M" : "L"} ${xFor(index).toFixed(1)} ${yFor(value).toFixed(1)}`)
-    .join(" ");
-  const areaPath = `${linePath} L ${xFor(exposure.totalByMonth.length - 1).toFixed(1)} ${
-    padding.top + innerHeight
-  } L ${padding.left} ${padding.top + innerHeight} Z`;
+  const visibleSeries = exposure.series.filter((series) => series.values.some((value) => value > 0));
+  const baselines = exposure.months.map(() => 0);
+  const layers = visibleSeries.map((series, seriesIndex) => {
+    const points = series.values.map((value, index) => {
+      const y0Value = baselines[index] ?? 0;
+      const y1Value = y0Value + value;
+      baselines[index] = y1Value;
+      return {
+        month: exposure.months[index],
+        value,
+        x: xFor(index),
+        y0: yFor(y0Value),
+        y1: yFor(y1Value),
+        y: yFor(y1Value)
+      };
+    });
+    return {
+      key: series.key,
+      color: STACK_COLORS[seriesIndex % STACK_COLORS.length],
+      total: series.values.reduce((sum, value) => sum + value, 0),
+      points
+    };
+  });
+  const totalLinePath = linePath(
+    exposure.totalByMonth.map((value, index) => ({
+      x: xFor(index),
+      y: yFor(value)
+    }))
+  );
   const selectedIndex = Math.max(0, exposure.months.indexOf(selectedMonth));
   const selectedValue = exposure.totalByMonth[selectedIndex] ?? 0;
+  const selectedLayer =
+    (selectedSeriesKey ? layers.find((layer) => layer.key === selectedSeriesKey) : undefined) ??
+    layers.find((layer) => (layer.points[selectedIndex]?.value ?? 0) > 0) ??
+    layers[0];
+  const selectedLayerValue = selectedLayer?.points[selectedIndex]?.value ?? 0;
+  const selectedBreakdown = layers
+    .map((layer) => ({
+      key: layer.key,
+      value: layer.points[selectedIndex]?.value ?? 0
+    }))
+    .filter((entry) => entry.value > 0)
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 3);
 
   return (
     <div className="chart-shell">
-      <svg className="chart" viewBox={`0 0 ${chartWidth} ${chartHeight}`} role="img" aria-label="Guarantee exposure area chart">
-        <defs>
-          <linearGradient id="guaranteeGradient" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="#1565C0" stopOpacity="0.42" />
-            <stop offset="100%" stopColor="#90CAF9" stopOpacity="0.08" />
-          </linearGradient>
-        </defs>
+      <svg className="chart" viewBox={`0 0 ${chartWidth} ${chartHeight}`} role="img" aria-label="Stacked guarantee exposure area chart">
         <line
           x1={padding.left}
           x2={chartWidth - padding.right}
@@ -318,8 +390,31 @@ function GuaranteeAreaChart({ repository }: { repository: EpcRepository }) {
           y2={padding.top + innerHeight}
           className="axis-line"
         />
-        <path d={areaPath} fill="url(#guaranteeGradient)" />
-        <path d={linePath} className="exposure-line" />
+        {layers.map((layer) => {
+          const isActive = selectedLayer?.key === layer.key;
+          const selectLayer = () => setSelectedSeriesKey(layer.key);
+          return (
+            <path
+              key={layer.key}
+              d={stackedAreaPath(layer.points)}
+              fill={layer.color}
+              className={`stacked-area-layer ${isActive ? "active" : ""}`}
+              data-testid={`guarantee-stack-layer-${layer.key}`}
+              role="button"
+              tabIndex={0}
+              aria-label={`Show ${layer.key} stacked guarantee exposure`}
+              onClick={selectLayer}
+              onFocus={selectLayer}
+              onMouseEnter={selectLayer}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") selectLayer();
+              }}
+            >
+              <title>{`${layer.key} total ${formatCompactMoney(layer.total)}`}</title>
+            </path>
+          );
+        })}
+        <path d={totalLinePath} className="exposure-line" />
         {exposure.totalByMonth.map((value, index) => {
           const month = exposure.months[index];
           const isSelected = index === selectedIndex;
@@ -356,13 +451,31 @@ function GuaranteeAreaChart({ repository }: { repository: EpcRepository }) {
           );
         })}
         <text x={padding.left} y="18" className="chart-caption">
-          Issued guarantee exposure
+          Issued guarantee exposure by project
         </text>
       </svg>
+      <div className="stacked-area-legend" aria-label="Guarantee stack layers">
+        {layers.map((layer) => (
+          <button
+            type="button"
+            key={layer.key}
+            className={selectedLayer?.key === layer.key ? "active" : undefined}
+            onClick={() => setSelectedSeriesKey(layer.key)}
+            onFocus={() => setSelectedSeriesKey(layer.key)}
+          >
+            <span className="legend-swatch" style={{ backgroundColor: layer.color }} />
+            {layer.key}
+          </button>
+        ))}
+      </div>
       <div className="chart-detail" aria-live="polite">
         <span>Guarantee detail</span>
         <strong>{exposure.months[selectedIndex]}</strong>
         <span>{formatCompactMoney(selectedValue)} issued exposure</span>
+        {selectedLayer && <span>{selectedLayer.key} {formatCompactMoney(selectedLayerValue)}</span>}
+        {selectedBreakdown.length > 0 && (
+          <span>{selectedBreakdown.map((entry) => `${entry.key} ${formatCompactMoney(entry.value)}`).join(" · ")}</span>
+        )}
         <span>{repository.guarantees.filter((guarantee) => guarantee.status === "ISSUED").length} issued guarantees</span>
       </div>
     </div>
@@ -836,11 +949,30 @@ function App() {
 
   function renderTimeline() {
     const projects = repository.projects.slice(0, 12);
+    const guaranteesByProject = new Map(
+      projects.map((project) => [project.id, repository.guarantees.filter((guarantee) => guarantee.projectId === project.id)])
+    );
+    const timelineDates = projects.flatMap((project) => {
+      const guaranteeDates = (guaranteesByProject.get(project.id) ?? []).flatMap((guarantee) =>
+        [guarantee.requiredDate, guarantee.issueDate, guarantee.expiryDate, guarantee.releaseDate].filter(
+          (date): date is string => Boolean(date)
+        )
+      );
+      return [project.startDate, project.plannedCOD, project.forecastCOD, ...guaranteeDates];
+    });
     const selectedProject = projects.find((project) => project.id === selectedTimelineProjectId) ?? projects[0];
-    const minDate = Math.min(...projects.map((project) => safeDate(project.startDate)));
-    const maxDate = Math.max(...projects.map((project) => safeDate(project.forecastCOD)));
+    const minDate = Math.min(...timelineDates.map((date) => safeDate(date)));
+    const maxDate = Math.max(...timelineDates.map((date) => safeDate(date)));
     const span = Math.max(1, maxDate - minDate);
-    const xFor = (date: string) => 20 + ((safeDate(date) - minDate) / span) * 620;
+    const chartWidth = 1040;
+    const labelWidth = 210;
+    const chartRight = 24;
+    const headerHeight = 46;
+    const rowHeight = 36;
+    const chartHeight = headerHeight + projects.length * rowHeight + 42;
+    const plotWidth = chartWidth - labelWidth - chartRight;
+    const xFor = (date: string) => labelWidth + ((safeDate(date) - minDate) / span) * plotWidth;
+    const tickMonths = timelineMonthTicks(minDate, maxDate);
 
     return (
       <section className="panel timeline-panel">
@@ -848,55 +980,108 @@ function App() {
           <h2>EPC Control Timeline</h2>
           <span className="panel-meta">Project, COD and guarantee windows</span>
         </div>
-        <div className="timeline-grid">
-          {projects.map((project) => {
-            const projectGuarantees = repository.guarantees.filter((guarantee) => guarantee.projectId === project.id);
-            const isSelected = selectedProject?.id === project.id;
-            const selectProject = () => setSelectedTimelineProjectId(project.id);
-            return (
-              <div
-                className={`timeline-row interactive ${isSelected ? "selected" : ""}`}
-                key={project.id}
-                role="button"
-                tabIndex={0}
-                data-testid={`timeline-project-${project.code}`}
-                aria-label={`Show ${project.code} timeline detail`}
-                onClick={selectProject}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") selectProject();
-                }}
-              >
-                <div className="timeline-label">
-                  <code>{project.code}</code>
-                  <span>{project.name}</span>
-                </div>
-                <svg viewBox="0 0 680 54" className="timeline-svg" role="img" aria-label={`${project.code} timeline`}>
-                  <line x1="20" x2="650" y1="18" y2="18" className="axis-line" />
+        <div className="gantt-scroll">
+          <svg
+            className="gantt-chart"
+            viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+            role="img"
+            aria-label="Unified project gantt chart"
+            data-testid="unified-gantt-chart"
+          >
+            <rect x={labelWidth} y="30" width={plotWidth} height={chartHeight - 66} rx="4" className="gantt-plot-bg" />
+            {tickMonths.map((month) => {
+              const x = xFor(`${month}-01`);
+              return (
+                <g key={month}>
+                  <line x1={x} x2={x} y1="30" y2={chartHeight - 30} className="gantt-tick-line" />
+                  <text x={x} y="20" textAnchor="middle" className="gantt-axis-label">
+                    {monthLabel(month)}
+                  </text>
+                </g>
+              );
+            })}
+            <text x="16" y="20" className="gantt-axis-label">
+              Project
+            </text>
+            {projects.map((project, index) => {
+              const projectGuarantees = guaranteesByProject.get(project.id) ?? [];
+              const isSelected = selectedProject?.id === project.id;
+              const selectProject = () => setSelectedTimelineProjectId(project.id);
+              const rowY = headerHeight + index * rowHeight;
+              const midY = rowY + rowHeight / 2;
+              return (
+                <g
+                  className={`gantt-row ${isSelected ? "selected" : ""}`}
+                  key={project.id}
+                  role="button"
+                  tabIndex={0}
+                  data-testid={`timeline-project-${project.code}`}
+                  aria-label={`Show ${project.code} timeline detail`}
+                  onClick={selectProject}
+                  onFocus={selectProject}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      selectProject();
+                    }
+                  }}
+                >
+                  <rect x="0" y={rowY} width={chartWidth} height={rowHeight} className="gantt-hit-target" />
+                  <rect x={labelWidth} y={rowY + 5} width={plotWidth} height={rowHeight - 10} rx="4" className="gantt-lane" />
+                  <text x="16" y={midY - 1} className="gantt-project-code">
+                    {project.code}
+                  </text>
+                  <text x="84" y={midY - 1} className="gantt-project-name">
+                    {project.name}
+                  </text>
+                  <line x1={labelWidth} x2={chartWidth - chartRight} y1={midY} y2={midY} className="axis-line gantt-baseline" />
                   <rect
                     x={xFor(project.startDate)}
-                    y="10"
+                    y={midY - 8}
                     width={Math.max(8, xFor(project.forecastCOD) - xFor(project.startDate))}
                     height="16"
                     rx="3"
                     className="timeline-bar"
                   />
-                  <circle cx={xFor(project.plannedCOD)} cy="18" r="4" className="timeline-dot planned" />
-                  <circle cx={xFor(project.forecastCOD)} cy="18" r="4" className="timeline-dot forecast" />
-                  {projectGuarantees.slice(0, 2).map((guarantee, index) => (
+                  <circle cx={xFor(project.plannedCOD)} cy={midY} r="4" className="timeline-dot planned" />
+                  <circle cx={xFor(project.forecastCOD)} cy={midY} r="4" className="timeline-dot forecast" />
+                  {projectGuarantees.slice(0, 2).map((guarantee, guaranteeIndex) => (
                     <rect
                       key={guarantee.id}
                       x={xFor(guarantee.issueDate ?? guarantee.requiredDate)}
-                      y={32 + index * 8}
-                      width={Math.max(6, xFor(guarantee.releaseDate ?? guarantee.expiryDate ?? project.forecastCOD) - xFor(guarantee.issueDate ?? guarantee.requiredDate))}
-                      height="5"
-                      rx="2"
+                      y={midY + 11 + guaranteeIndex * 5}
+                      width={Math.max(
+                        6,
+                        xFor(guarantee.releaseDate ?? guarantee.expiryDate ?? project.forecastCOD) -
+                          xFor(guarantee.issueDate ?? guarantee.requiredDate)
+                      )}
+                      height="3"
+                      rx="1.5"
                       className="guarantee-window"
                     />
                   ))}
-                </svg>
-              </div>
-            );
-          })}
+                </g>
+              );
+            })}
+            <g className="gantt-legend">
+              <rect x={labelWidth} y={chartHeight - 23} width="28" height="6" rx="2" className="timeline-bar" />
+              <text x={labelWidth + 36} y={chartHeight - 17} className="gantt-axis-label">
+                Project span
+              </text>
+              <circle cx={labelWidth + 150} cy={chartHeight - 20} r="4" className="timeline-dot planned" />
+              <text x={labelWidth + 160} y={chartHeight - 17} className="gantt-axis-label">
+                Planned COD
+              </text>
+              <circle cx={labelWidth + 275} cy={chartHeight - 20} r="4" className="timeline-dot forecast" />
+              <text x={labelWidth + 285} y={chartHeight - 17} className="gantt-axis-label">
+                Forecast COD
+              </text>
+              <rect x={labelWidth + 420} y={chartHeight - 22} width="28" height="4" rx="1.5" className="guarantee-window" />
+              <text x={labelWidth + 456} y={chartHeight - 17} className="gantt-axis-label">
+                Guarantee window
+              </text>
+            </g>
+          </svg>
         </div>
         {selectedProject && (
           <div className="chart-detail timeline-detail" aria-live="polite">

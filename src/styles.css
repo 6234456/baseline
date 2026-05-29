@@ -388,6 +388,55 @@ code {
   font-size: 11px;
 }
 
+.stacked-area-layer {
+  opacity: 0.72;
+  cursor: pointer;
+  outline: none;
+  transition: opacity 0.15s ease, filter 0.15s ease;
+}
+
+.stacked-area-layer:hover,
+.stacked-area-layer:focus-visible,
+.stacked-area-layer.active {
+  opacity: 0.92;
+  filter: drop-shadow(0 2px 4px rgba(21, 101, 192, 0.18));
+}
+
+.stacked-area-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.stacked-area-legend button {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  color: var(--ink-700);
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.78rem;
+  outline: none;
+}
+
+.stacked-area-legend button:hover,
+.stacked-area-legend button:focus-visible,
+.stacked-area-legend button.active {
+  color: var(--brand-900);
+  border-color: var(--brand-200);
+  box-shadow: 0 0 0 3px rgba(144, 202, 249, 0.2);
+}
+
+.legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
 .chart-caption {
   fill: var(--ink-700);
   font-size: 12px;
@@ -656,62 +705,104 @@ tbody tr:hover td {
   overflow: hidden;
 }
 
-.timeline-grid {
-  display: grid;
-  gap: 8px;
-}
-
-.timeline-row {
-  min-height: 64px;
-  display: grid;
-  grid-template-columns: 280px minmax(420px, 1fr);
-  gap: 14px;
-  align-items: center;
-  padding: 7px 10px;
-  background: var(--surface-soft);
+.gantt-scroll {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
   border: 1px solid var(--line);
   border-radius: 6px;
+  background: #ffffff;
 }
 
-.timeline-row.interactive {
+.gantt-chart {
+  width: 100%;
+  min-width: 960px;
+  display: block;
+}
+
+.gantt-row {
   cursor: pointer;
   outline: none;
-  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
 
-.timeline-row.interactive:hover,
-.timeline-row.interactive:focus-visible,
-.timeline-row.interactive.selected {
-  background: #f7fbff;
-  border-color: var(--brand-200);
-  box-shadow: inset 3px 0 0 var(--brand-700);
+.gantt-hit-target {
+  fill: transparent;
+}
+
+.gantt-row:hover .gantt-hit-target,
+.gantt-row:focus-visible .gantt-hit-target,
+.gantt-row.selected .gantt-hit-target {
+  fill: rgba(21, 101, 192, 0.05);
+}
+
+.gantt-row:hover .gantt-lane,
+.gantt-row:focus-visible .gantt-lane,
+.gantt-row.selected .gantt-lane {
+  stroke: var(--brand-200);
+  stroke-width: 1;
 }
 
 .timeline-detail {
   margin-top: 12px;
 }
 
-.timeline-label {
-  min-width: 0;
-  display: grid;
-  gap: 4px;
+.gantt-plot-bg {
+  fill: #f8fbfe;
+  stroke: var(--line);
 }
 
-.timeline-label span {
-  overflow: hidden;
-  color: var(--ink-700);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.gantt-lane {
+  fill: rgba(255, 255, 255, 0.72);
+  stroke: transparent;
+  transition: fill 0.15s ease, stroke 0.15s ease;
 }
 
-.timeline-svg {
-  width: 100%;
-  height: 54px;
+.gantt-tick-line {
+  stroke: #d9e4ee;
+  stroke-width: 1;
+}
+
+.gantt-baseline {
+  stroke-dasharray: 3 4;
+  opacity: 0.55;
+}
+
+.gantt-axis-label,
+.gantt-project-code,
+.gantt-project-name {
+  dominant-baseline: middle;
+  font-size: 11px;
+}
+
+.gantt-axis-label {
+  fill: var(--ink-500);
+}
+
+.gantt-project-code {
+  fill: var(--brand-900);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-weight: 700;
+}
+
+.gantt-project-name {
+  fill: var(--ink-700);
+  font-size: 10.5px;
+}
+
+.gantt-legend {
+  pointer-events: none;
 }
 
 .timeline-bar {
   fill: #1565c0;
   opacity: 0.88;
+}
+
+.gantt-row:hover .timeline-bar,
+.gantt-row:focus-visible .timeline-bar,
+.gantt-row.selected .timeline-bar {
+  opacity: 1;
+  filter: drop-shadow(0 2px 4px rgba(21, 101, 192, 0.2));
 }
 
 .timeline-dot.planned {
@@ -866,8 +957,8 @@ tbody tr:hover td {
     display: none;
   }
 
-  .timeline-row {
-    grid-template-columns: 220px minmax(360px, 1fr);
+  .gantt-chart {
+    min-width: 900px;
   }
 }
 
@@ -934,7 +1025,7 @@ tbody tr:hover td {
     justify-content: center;
   }
 
-  .timeline-row {
-    grid-template-columns: 1fr;
+  .gantt-chart {
+    min-width: 760px;
   }
 }
