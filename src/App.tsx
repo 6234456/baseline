@@ -12,10 +12,12 @@ import {
   FileSpreadsheet,
   History,
   LayoutDashboard,
+  Link2,
   Pencil,
   Plus,
   RefreshCw,
   Save,
+  Search,
   Settings,
   ShieldCheck,
   Table2,
@@ -41,6 +43,7 @@ import type {
   BusinessDiff,
   EpcRepository,
   Project,
+  ProjectPhase,
   SheetColumn,
   SheetViewModel,
   StagingTransaction,
@@ -85,6 +88,38 @@ const PROJECT_STATUS_OPTIONS: Project["status"][] = [
   "COMPLETED",
   "SUSPENDED",
   "CANCELLED"
+];
+
+type PhaseType = ProjectPhase["phaseType"];
+
+interface TimelineDependency {
+  projectId: string;
+  from: PhaseType;
+  to: PhaseType;
+}
+
+const GANTT_PHASES: PhaseType[] = ["ENGINEERING", "PROCUREMENT", "CONSTRUCTION", "COMMISSIONING"];
+
+const PHASE_LABELS: Record<PhaseType, string> = {
+  ENGINEERING: "Engineering",
+  PROCUREMENT: "Procurement",
+  CONSTRUCTION: "Construction",
+  COMMISSIONING: "Commissioning",
+  OTHER: "Other"
+};
+
+const PHASE_COLORS: Record<PhaseType, string> = {
+  ENGINEERING: "#ec4899",
+  PROCUREMENT: "#8b5cf6",
+  CONSTRUCTION: "#f59e0b",
+  COMMISSIONING: "#10b981",
+  OTHER: "#64748b"
+};
+
+const DEFAULT_GANTT_DEPENDENCIES: Array<Pick<TimelineDependency, "from" | "to">> = [
+  { from: "ENGINEERING", to: "PROCUREMENT" },
+  { from: "PROCUREMENT", to: "CONSTRUCTION" },
+  { from: "CONSTRUCTION", to: "COMMISSIONING" }
 ];
 
 function metricLabel(key: string) {
@@ -571,6 +606,14 @@ function App() {
   const [changeNote, setChangeNote] = useState("Update portfolio from workbook");
   const [notice, setNotice] = useState("Seed portfolio loaded");
   const [selectedTimelineProjectId, setSelectedTimelineProjectId] = useState("project-001");
+  const [timelineProjectFilter, setTimelineProjectFilter] = useState("");
+  const [timelineSubprojectFocus, setTimelineSubprojectFocus] = useState<PhaseType>("ENGINEERING");
+  const [selectedTimelinePhaseId, setSelectedTimelinePhaseId] = useState<string | null>(null);
+  const [dependencyDraft, setDependencyDraft] = useState<Pick<TimelineDependency, "from" | "to">>({
+    from: "ENGINEERING",
+    to: "PROCUREMENT"
+  });
+  const [timelineCustomDependencies, setTimelineCustomDependencies] = useState<TimelineDependency[]>([]);
   const [selectedExposureCell, setSelectedExposureCell] = useState<{
     seriesKey: string;
     month: string;
@@ -1065,37 +1108,191 @@ function App() {
   }
 
   function renderTimeline() {
-    const projects = repository.projects.slice(0, 12);
-    const guaranteesByProject = new Map(
-      projects.map((project) => [project.id, repository.guarantees.filter((guarantee) => guarantee.projectId === project.id)])
+    const baseProjects = repository.projects.slice(0, 12);
+    const filterText = timelineProjectFilter.trim().toLowerCase();
+    const phasesByProject = new Map(
+      baseProjects.map((project) => [
+        project.id,
+        repository.projectPhases
+          .filter((phase) => phase.projectId === project.id)
+          .sort((a, b) => a.sequence - b.sequence)
+      ])
     );
-    const timelineDates = projects.flatMap((project) => {
+    const projects = baseProjects.filter((project) => {
+      if (!filterText) return true;
+      const phaseText = (phasesByProject.get(project.id) ?? [])
+        .map((phase) => `${PHASE_LABELS[phase.phaseType]} ${phase.name} ${phase.status}`)
+        .join(" ");
+      return [
+        project.code,
+        project.name,
+        project.pm,
+        project.location,
+        project.content,
+        project.status,
+        phaseText
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(filterText);
+    });
+    const guaranteesByProject = new Map(
+      baseProjects.map((project) => [project.id, repository.guarantees.filter((guarantee) => guarantee.projectId === project.id)])
+    );
+    const timelineProjects = projects.length ? projects : baseProjects.slice(0, 1);
+    const timelineDates = timelineProjects.flatMap((project) => {
       const guaranteeDates = (guaranteesByProject.get(project.id) ?? []).flatMap((guarantee) =>
         [guarantee.requiredDate, guarantee.issueDate, guarantee.expiryDate, guarantee.releaseDate].filter(
           (date): date is string => Boolean(date)
         )
       );
-      return [project.startDate, project.plannedCOD, project.forecastCOD, ...guaranteeDates];
+      const phaseDates = (phasesByProject.get(project.id) ?? []).flatMap((phase) => [
+        phase.baselineStartDate,
+        phase.baselineEndDate,
+        phase.forecastStartDate,
+        phase.forecastEndDate
+      ]);
+      return [project.startDate, project.plannedCOD, project.forecastCOD, ...phaseDates, ...guaranteeDates];
     });
     const selectedProject = projects.find((project) => project.id === selectedTimelineProjectId) ?? projects[0];
+    const selectedProjectPhases = selectedProject ? phasesByProject.get(selectedProject.id) ?? [] : [];
+    const selectedPhase =
+      selectedProjectPhases.find((phase) => phase.id === selectedTimelinePhaseId) ??
+      selectedProjectPhases.find((phase) => phase.phaseType === timelineSubprojectFocus) ??
+      selectedProjectPhases[0];
     const minDate = Math.min(...timelineDates.map((date) => safeDate(date)));
     const maxDate = Math.max(...timelineDates.map((date) => safeDate(date)));
     const span = Math.max(1, maxDate - minDate);
-    const chartWidth = 1040;
-    const labelWidth = 210;
-    const chartRight = 24;
-    const headerHeight = 46;
-    const rowHeight = 36;
-    const chartHeight = headerHeight + projects.length * rowHeight + 42;
+    const chartWidth = 1240;
+    const labelWidth = 340;
+    const chartRight = 28;
+    const headerHeight = 64;
+    const rowHeight = 32;
+    const plotHeight = Math.max(1, projects.reduce((count, project) => count + 1 + (phasesByProject.get(project.id) ?? []).length, 0));
+    const chartHeight = headerHeight + plotHeight * rowHeight + 50;
     const plotWidth = chartWidth - labelWidth - chartRight;
     const xFor = (date: string) => labelWidth + ((safeDate(date) - minDate) / span) * plotWidth;
     const tickMonths = timelineMonthTicks(minDate, maxDate);
+    const dependencyListFor = (projectId: string) => {
+      const merged = [
+        ...DEFAULT_GANTT_DEPENDENCIES.map((dependency) => ({ projectId, ...dependency })),
+        ...timelineCustomDependencies.filter((dependency) => dependency.projectId === projectId)
+      ];
+      const seen = new Set<string>();
+      return merged.filter((dependency) => {
+        const key = `${dependency.from}-${dependency.to}`;
+        if (seen.has(key) || dependency.from === dependency.to) return false;
+        seen.add(key);
+        return true;
+      });
+    };
+    const timelineRows = projects.flatMap((project) => [
+      { id: `${project.id}:project`, type: "project" as const, project },
+      ...(phasesByProject.get(project.id) ?? []).map((phase) => ({
+        id: `${project.id}:${phase.phaseType}`,
+        type: "phase" as const,
+        project,
+        phase
+      }))
+    ]);
+    const rowIndexByKey = new Map(timelineRows.map((row, index) => [row.id, index]));
+    const rowMidY = (rowId: string) => headerHeight + (rowIndexByKey.get(rowId) ?? 0) * rowHeight + rowHeight / 2;
+    const selectProject = (project: Project) => {
+      setSelectedTimelineProjectId(project.id);
+      const focusedPhase = (phasesByProject.get(project.id) ?? []).find((phase) => phase.phaseType === timelineSubprojectFocus);
+      setSelectedTimelinePhaseId(focusedPhase?.id ?? null);
+    };
+    const selectPhase = (project: Project, phase: ProjectPhase) => {
+      setSelectedTimelineProjectId(project.id);
+      setSelectedTimelinePhaseId(phase.id);
+      setTimelineSubprojectFocus(phase.phaseType);
+    };
+    const setTimelineDependency = () => {
+      if (!selectedProject || dependencyDraft.from === dependencyDraft.to) return;
+      setTimelineCustomDependencies((current) => {
+        const exists = current.some(
+          (dependency) =>
+            dependency.projectId === selectedProject.id &&
+            dependency.from === dependencyDraft.from &&
+            dependency.to === dependencyDraft.to
+        );
+        if (exists) return current;
+        return [...current, { projectId: selectedProject.id, from: dependencyDraft.from, to: dependencyDraft.to }];
+      });
+    };
 
     return (
       <section className="panel timeline-panel">
         <div className="panel-header">
           <h2>EPC Control Timeline</h2>
-          <span className="panel-meta">Project, COD and guarantee windows</span>
+          <span className="panel-meta">Tree grid, project filter, subprojects and dependencies</span>
+        </div>
+        <div className="gantt-toolbar" role="toolbar" aria-label="Gantt controls">
+          <label className="gantt-search" htmlFor="timeline-project-filter">
+            <Search size={16} />
+            <input
+              id="timeline-project-filter"
+              aria-label="Filter timeline projects"
+              placeholder="Search projects..."
+              value={timelineProjectFilter}
+              onChange={(event) => setTimelineProjectFilter(event.target.value)}
+            />
+          </label>
+          <label className="gantt-control" htmlFor="timeline-subproject-focus">
+            <span>Subproject</span>
+            <select
+              id="timeline-subproject-focus"
+              aria-label="Set selected subproject"
+              value={timelineSubprojectFocus}
+              onChange={(event) => {
+                const nextPhaseType = event.target.value as PhaseType;
+                setTimelineSubprojectFocus(nextPhaseType);
+                const nextPhase = selectedProjectPhases.find((phase) => phase.phaseType === nextPhaseType);
+                setSelectedTimelinePhaseId(nextPhase?.id ?? null);
+              }}
+            >
+              {GANTT_PHASES.map((phaseType) => (
+                <option key={phaseType} value={phaseType}>
+                  {PHASE_LABELS[phaseType]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="gantt-dependency-editor" aria-label="Dependency editor">
+            <Link2 size={16} />
+            <select
+              aria-label="Dependency predecessor"
+              value={dependencyDraft.from}
+              onChange={(event) => setDependencyDraft((current) => ({ ...current, from: event.target.value as PhaseType }))}
+            >
+              {GANTT_PHASES.map((phaseType) => (
+                <option key={phaseType} value={phaseType}>
+                  {PHASE_LABELS[phaseType]}
+                </option>
+              ))}
+            </select>
+            <span>to</span>
+            <select
+              aria-label="Dependency successor"
+              value={dependencyDraft.to}
+              onChange={(event) => setDependencyDraft((current) => ({ ...current, to: event.target.value as PhaseType }))}
+            >
+              {GANTT_PHASES.map((phaseType) => (
+                <option key={phaseType} value={phaseType}>
+                  {PHASE_LABELS[phaseType]}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="secondary-button compact-button"
+              disabled={!selectedProject || dependencyDraft.from === dependencyDraft.to}
+              onClick={setTimelineDependency}
+            >
+              Set dependency
+            </button>
+          </div>
+          <span className="panel-meta">{projects.length} projects visible</span>
         </div>
         <div className="gantt-scroll">
           <svg
@@ -1105,96 +1302,225 @@ function App() {
             aria-label="Unified project gantt chart"
             data-testid="unified-gantt-chart"
           >
-            <rect x={labelWidth} y="30" width={plotWidth} height={chartHeight - 66} rx="4" className="gantt-plot-bg" />
+            <defs>
+              <marker id="dependency-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+                <path d="M 0 0 L 8 4 L 0 8 z" className="dependency-arrow-head" />
+              </marker>
+            </defs>
+            <rect x="0" y="0" width={chartWidth} height={chartHeight - 34} rx="4" className="gantt-shell-bg" />
+            <rect x="0" y="0" width={labelWidth} height={chartHeight - 34} className="gantt-grid-bg" />
+            <rect x={labelWidth} y="30" width={plotWidth} height={chartHeight - 84} rx="4" className="gantt-plot-bg" />
+            <line x1={labelWidth} x2={labelWidth} y1="0" y2={chartHeight - 34} className="gantt-pane-divider" />
+            <text x="18" y="22" className="gantt-axis-label">
+              #
+            </text>
+            <text x="48" y="22" className="gantt-axis-label">
+              Project / task
+            </text>
+            <text x="246" y="22" className="gantt-axis-label">
+              Owner
+            </text>
             {tickMonths.map((month) => {
               const x = xFor(`${month}-01`);
               return (
                 <g key={month}>
-                  <line x1={x} x2={x} y1="30" y2={chartHeight - 30} className="gantt-tick-line" />
+                  <line x1={x} x2={x} y1="30" y2={chartHeight - 34} className="gantt-tick-line" />
                   <text x={x} y="20" textAnchor="middle" className="gantt-axis-label">
                     {monthLabel(month)}
                   </text>
                 </g>
               );
             })}
-            <text x="16" y="20" className="gantt-axis-label">
-              Project
-            </text>
-            {projects.map((project, index) => {
-              const projectGuarantees = guaranteesByProject.get(project.id) ?? [];
-              const isSelected = selectedProject?.id === project.id;
-              const selectProject = () => setSelectedTimelineProjectId(project.id);
+            {timelineRows.map((row, index) => {
+              const rowY = headerHeight + index * rowHeight;
+              return (
+                <line
+                  key={`grid-${row.id}`}
+                  x1="0"
+                  x2={chartWidth}
+                  y1={rowY}
+                  y2={rowY}
+                  className={row.type === "project" ? "gantt-project-grid-line" : "gantt-grid-line"}
+                />
+              );
+            })}
+            {projects.flatMap((project) =>
+              dependencyListFor(project.id).map((dependency) => {
+                const fromPhase = (phasesByProject.get(project.id) ?? []).find((phase) => phase.phaseType === dependency.from);
+                const toPhase = (phasesByProject.get(project.id) ?? []).find((phase) => phase.phaseType === dependency.to);
+                if (!fromPhase || !toPhase) return null;
+                const fromY = rowMidY(`${project.id}:${fromPhase.phaseType}`);
+                const toY = rowMidY(`${project.id}:${toPhase.phaseType}`);
+                const fromX = xFor(fromPhase.forecastEndDate);
+                const toX = xFor(toPhase.forecastStartDate);
+                const direction = toX >= fromX ? 1 : -1;
+                const curve = Math.max(22, Math.abs(toX - fromX) / 2);
+                const path = [
+                  `M ${fromX.toFixed(1)} ${fromY.toFixed(1)}`,
+                  `C ${(fromX + curve * direction).toFixed(1)} ${fromY.toFixed(1)}`,
+                  `${(toX - curve * direction).toFixed(1)} ${toY.toFixed(1)}`,
+                  `${toX.toFixed(1)} ${toY.toFixed(1)}`
+                ].join(" ");
+                return (
+                  <path
+                    key={`${project.id}-${dependency.from}-${dependency.to}`}
+                    d={path}
+                    className="gantt-dependency-line"
+                    markerEnd="url(#dependency-arrow)"
+                    data-testid={`gantt-dependency-${project.code}-${dependency.from}-${dependency.to}`}
+                    aria-label={`${project.code} dependency ${PHASE_LABELS[dependency.from]} to ${PHASE_LABELS[dependency.to]}`}
+                  />
+                );
+              })
+            )}
+            {timelineRows.map((row, index) => {
               const rowY = headerHeight + index * rowHeight;
               const midY = rowY + rowHeight / 2;
+              if (row.type === "project") {
+                const project = row.project;
+                const projectGuarantees = guaranteesByProject.get(project.id) ?? [];
+                const isSelected = selectedProject?.id === project.id;
+                const onSelectProject = () => selectProject(project);
+                return (
+                  <g
+                    className={`gantt-row gantt-project-row ${isSelected ? "selected" : ""}`}
+                    key={row.id}
+                    role="button"
+                    tabIndex={0}
+                    data-testid={`timeline-project-${project.code}`}
+                    aria-label={`Show ${project.code} timeline detail`}
+                    onClick={onSelectProject}
+                    onFocus={onSelectProject}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onSelectProject();
+                      }
+                    }}
+                  >
+                    <rect x="0" y={rowY} width={chartWidth} height={rowHeight} className="gantt-hit-target" />
+                    <rect x={labelWidth} y={rowY + 5} width={plotWidth} height={rowHeight - 10} rx="4" className="gantt-lane" />
+                    <text x="18" y={midY} className="gantt-row-index">
+                      {index + 1}
+                    </text>
+                    <g data-testid={`gantt-tree-project-${project.code}`}>
+                      <text x="48" y={midY} className="gantt-project-code">
+                        {project.code}
+                      </text>
+                      <text x="122" y={midY} className="gantt-project-name">
+                        {project.name}
+                      </text>
+                    </g>
+                    <text x="246" y={midY} className="gantt-project-owner">
+                      {project.pm}
+                    </text>
+                    <line x1={labelWidth} x2={chartWidth - chartRight} y1={midY} y2={midY} className="axis-line gantt-baseline" />
+                    <rect
+                      x={xFor(project.startDate)}
+                      y={midY - 8}
+                      width={Math.max(8, xFor(project.forecastCOD) - xFor(project.startDate))}
+                      height="16"
+                      rx="3"
+                      className="timeline-bar"
+                    />
+                    <text x={xFor(project.startDate) + 6} y={midY} className="gantt-bar-label">
+                      {project.status}
+                    </text>
+                    <circle cx={xFor(project.plannedCOD)} cy={midY} r="4" className="timeline-dot planned" />
+                    <circle cx={xFor(project.forecastCOD)} cy={midY} r="4" className="timeline-dot forecast" />
+                    {projectGuarantees.slice(0, 2).map((guarantee, guaranteeIndex) => (
+                      <rect
+                        key={guarantee.id}
+                        x={xFor(guarantee.issueDate ?? guarantee.requiredDate)}
+                        y={midY + 11 + guaranteeIndex * 5}
+                        width={Math.max(
+                          6,
+                          xFor(guarantee.releaseDate ?? guarantee.expiryDate ?? project.forecastCOD) -
+                            xFor(guarantee.issueDate ?? guarantee.requiredDate)
+                        )}
+                        height="3"
+                        rx="1.5"
+                        className="guarantee-window"
+                      />
+                    ))}
+                  </g>
+                );
+              }
+              const { project, phase } = row;
+              const isSelected = selectedPhase?.id === phase.id;
+              const isFocused = timelineSubprojectFocus === phase.phaseType;
+              const startX = xFor(phase.forecastStartDate);
+              const endX = xFor(phase.forecastEndDate);
+              const width = Math.max(10, endX - startX);
+              const onSelectPhase = () => selectPhase(project, phase);
               return (
                 <g
-                  className={`gantt-row ${isSelected ? "selected" : ""}`}
-                  key={project.id}
+                  className={`gantt-row gantt-phase-row ${isSelected ? "selected" : ""} ${isFocused ? "focus" : ""}`}
+                  key={row.id}
                   role="button"
                   tabIndex={0}
-                  data-testid={`timeline-project-${project.code}`}
-                  aria-label={`Show ${project.code} timeline detail`}
-                  onClick={selectProject}
-                  onFocus={selectProject}
+                  data-testid={`gantt-task-${project.code}-${phase.phaseType}`}
+                  aria-label={`Show ${project.code} ${PHASE_LABELS[phase.phaseType]} subproject detail`}
+                  onClick={onSelectPhase}
+                  onFocus={onSelectPhase}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" || event.key === " ") {
                       event.preventDefault();
-                      selectProject();
+                      onSelectPhase();
                     }
                   }}
                 >
                   <rect x="0" y={rowY} width={chartWidth} height={rowHeight} className="gantt-hit-target" />
-                  <rect x={labelWidth} y={rowY + 5} width={plotWidth} height={rowHeight - 10} rx="4" className="gantt-lane" />
-                  <text x="16" y={midY - 1} className="gantt-project-code">
-                    {project.code}
+                  <rect x={labelWidth} y={rowY + 6} width={plotWidth} height={rowHeight - 12} rx="4" className="gantt-lane" />
+                  <text x="18" y={midY} className="gantt-row-index">
+                    {index + 1}
                   </text>
-                  <text x="84" y={midY - 1} className="gantt-project-name">
-                    {project.name}
+                  <circle cx="62" cy={midY} r="4" fill={PHASE_COLORS[phase.phaseType]} className="phase-status-dot" />
+                  <text x="78" y={midY} className="gantt-phase-name">
+                    {PHASE_LABELS[phase.phaseType]}
                   </text>
-                  <line x1={labelWidth} x2={chartWidth - chartRight} y1={midY} y2={midY} className="axis-line gantt-baseline" />
+                  <text x="174" y={midY} className="gantt-phase-progress">
+                    {phase.progressPct}%
+                  </text>
+                  <text x="246" y={midY} className={`status-text ${statusClass(phase.status)}`}>
+                    {phase.status}
+                  </text>
+                  <rect x={startX} y={midY - 7} width={width} height="14" rx="3" className="gantt-task-track" />
                   <rect
-                    x={xFor(project.startDate)}
-                    y={midY - 8}
-                    width={Math.max(8, xFor(project.forecastCOD) - xFor(project.startDate))}
-                    height="16"
+                    x={startX}
+                    y={midY - 7}
+                    width={Math.max(4, (width * phase.progressPct) / 100)}
+                    height="14"
                     rx="3"
-                    className="timeline-bar"
+                    fill={PHASE_COLORS[phase.phaseType]}
+                    className="gantt-task-bar"
                   />
-                  <circle cx={xFor(project.plannedCOD)} cy={midY} r="4" className="timeline-dot planned" />
-                  <circle cx={xFor(project.forecastCOD)} cy={midY} r="4" className="timeline-dot forecast" />
-                  {projectGuarantees.slice(0, 2).map((guarantee, guaranteeIndex) => (
-                    <rect
-                      key={guarantee.id}
-                      x={xFor(guarantee.issueDate ?? guarantee.requiredDate)}
-                      y={midY + 11 + guaranteeIndex * 5}
-                      width={Math.max(
-                        6,
-                        xFor(guarantee.releaseDate ?? guarantee.expiryDate ?? project.forecastCOD) -
-                          xFor(guarantee.issueDate ?? guarantee.requiredDate)
-                      )}
-                      height="3"
-                      rx="1.5"
-                      className="guarantee-window"
-                    />
-                  ))}
+                  <text x={startX + 6} y={midY} className="gantt-task-label">
+                    {PHASE_LABELS[phase.phaseType]} · {phase.progressPct}%
+                  </text>
                 </g>
               );
             })}
+            {!projects.length && (
+              <text x={labelWidth + 24} y={headerHeight + 32} className="gantt-empty-label">
+                No projects match the current filter.
+              </text>
+            )}
             <g className="gantt-legend">
-              <rect x={labelWidth} y={chartHeight - 23} width="28" height="6" rx="2" className="timeline-bar" />
-              <text x={labelWidth + 36} y={chartHeight - 17} className="gantt-axis-label">
+              <rect x={labelWidth} y={chartHeight - 24} width="28" height="6" rx="2" className="timeline-bar" />
+              <text x={labelWidth + 36} y={chartHeight - 18} className="gantt-axis-label">
                 Project span
               </text>
-              <circle cx={labelWidth + 150} cy={chartHeight - 20} r="4" className="timeline-dot planned" />
-              <text x={labelWidth + 160} y={chartHeight - 17} className="gantt-axis-label">
-                Planned COD
+              <rect x={labelWidth + 156} y={chartHeight - 25} width="28" height="8" rx="2" className="gantt-task-bar legend" />
+              <text x={labelWidth + 192} y={chartHeight - 18} className="gantt-axis-label">
+                Subproject progress
               </text>
-              <circle cx={labelWidth + 275} cy={chartHeight - 20} r="4" className="timeline-dot forecast" />
-              <text x={labelWidth + 285} y={chartHeight - 17} className="gantt-axis-label">
-                Forecast COD
+              <path d={`M ${labelWidth + 344} ${chartHeight - 22} C ${labelWidth + 374} ${chartHeight - 22} ${labelWidth + 396} ${chartHeight - 22} ${labelWidth + 426} ${chartHeight - 22}`} className="gantt-dependency-line legend" markerEnd="url(#dependency-arrow)" />
+              <text x={labelWidth + 438} y={chartHeight - 18} className="gantt-axis-label">
+                Dependency
               </text>
-              <rect x={labelWidth + 420} y={chartHeight - 22} width="28" height="4" rx="1.5" className="guarantee-window" />
-              <text x={labelWidth + 456} y={chartHeight - 17} className="gantt-axis-label">
+              <rect x={labelWidth + 548} y={chartHeight - 23} width="28" height="4" rx="1.5" className="guarantee-window" />
+              <text x={labelWidth + 584} y={chartHeight - 18} className="gantt-axis-label">
                 Guarantee window
               </text>
             </g>
@@ -1205,7 +1531,17 @@ function App() {
             <span>Timeline detail</span>
             <strong>{selectedProject.code}</strong>
             <span>{selectedProject.startDate} to {selectedProject.forecastCOD}</span>
+            <span>Focus {PHASE_LABELS[timelineSubprojectFocus]}</span>
             <span>{selectedProject.status}</span>
+          </div>
+        )}
+        {selectedPhase && (
+          <div className="chart-detail timeline-detail" aria-live="polite">
+            <span>Task detail</span>
+            <strong>{PHASE_LABELS[selectedPhase.phaseType]}</strong>
+            <span>{selectedPhase.forecastStartDate} to {selectedPhase.forecastEndDate}</span>
+            <span>{selectedPhase.progressPct}% complete</span>
+            <span>{selectedPhase.status}</span>
           </div>
         )}
       </section>

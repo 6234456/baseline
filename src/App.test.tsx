@@ -109,6 +109,35 @@ describe("EPC Control Console app", () => {
     expect(screen.getByText("Exposure cell")).toBeInTheDocument();
   });
 
+  it("supports Gantt project filtering, subproject focus, and dependency editing", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open timeline/i }));
+
+    expect(screen.getByLabelText("Filter timeline projects")).toBeInTheDocument();
+    expect(screen.getByLabelText("Set selected subproject")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Filter timeline projects"), { target: { value: "EPC-004" } });
+
+    expect(screen.getByTestId("gantt-tree-project-EPC-004")).toBeInTheDocument();
+    expect(screen.queryByTestId("gantt-tree-project-EPC-003")).not.toBeInTheDocument();
+    expect(screen.getByTestId("gantt-task-EPC-004-ENGINEERING")).toBeInTheDocument();
+    expect(screen.getByTestId("gantt-task-EPC-004-PROCUREMENT")).toBeInTheDocument();
+    expect(screen.getByTestId("gantt-dependency-EPC-004-ENGINEERING-PROCUREMENT")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("gantt-task-EPC-004-PROCUREMENT"));
+    expect(screen.getByText("Task detail").parentElement).toHaveTextContent("Procurement");
+
+    fireEvent.change(screen.getByLabelText("Set selected subproject"), { target: { value: "CONSTRUCTION" } });
+    expect(screen.getByText("Timeline detail").parentElement).toHaveTextContent("Focus Construction");
+
+    fireEvent.change(screen.getByLabelText("Dependency predecessor"), { target: { value: "PROCUREMENT" } });
+    fireEvent.change(screen.getByLabelText("Dependency successor"), { target: { value: "COMMISSIONING" } });
+    fireEvent.click(screen.getByRole("button", { name: /set dependency/i }));
+
+    expect(screen.getByTestId("gantt-dependency-EPC-004-PROCUREMENT-COMMISSIONING")).toBeInTheDocument();
+  });
+
   it("shows guarantee interest by bank", () => {
     render(<App />);
 

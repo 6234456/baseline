@@ -1,6 +1,7 @@
 :root {
   --font-sans: "Roboto", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
   --font-mono: "Roboto Mono", "SFMono-Regular", Consolas, monospace;
+  --brand-900: #0b3f75;
   --brand-700: #1565c0;
   --brand-500: #42a5f5;
   --brand-200: #90caf9;
@@ -771,6 +772,79 @@ td.cell-align-right .cell-input {
   overflow: hidden;
 }
 
+.gantt-toolbar {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  padding: 8px;
+  background: #f8fbfe;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.gantt-search,
+.gantt-control,
+.gantt-dependency-editor {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-500);
+  font-size: 0.84rem;
+}
+
+.gantt-search {
+  flex: 1 1 230px;
+  max-width: 340px;
+  padding: 0 10px;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.gantt-search input {
+  width: 100%;
+  min-width: 80px;
+  min-height: 30px;
+  padding: 0;
+  color: var(--ink-900);
+  background: transparent;
+  border: 0;
+  outline: none;
+}
+
+.gantt-control,
+.gantt-dependency-editor {
+  padding: 0 8px;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.gantt-control span,
+.gantt-dependency-editor span {
+  color: var(--ink-500);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.gantt-control select,
+.gantt-dependency-editor select {
+  min-height: 28px;
+  color: var(--ink-700);
+  background: transparent;
+  border: 0;
+  outline: none;
+}
+
+.compact-button {
+  min-height: 28px;
+  padding: 0 9px;
+}
+
 .gantt-scroll {
   width: 100%;
   overflow-x: auto;
@@ -782,7 +856,7 @@ td.cell-align-right .cell-input {
 
 .gantt-chart {
   width: 100%;
-  min-width: 960px;
+  min-width: 1180px;
   display: block;
 }
 
@@ -808,8 +882,21 @@ td.cell-align-right .cell-input {
   stroke-width: 1;
 }
 
+.gantt-phase-row.focus .gantt-lane {
+  stroke: rgba(245, 158, 11, 0.45);
+  stroke-width: 1;
+}
+
 .timeline-detail {
   margin-top: 12px;
+}
+
+.gantt-shell-bg {
+  fill: #ffffff;
+}
+
+.gantt-grid-bg {
+  fill: #fbfcfe;
 }
 
 .gantt-plot-bg {
@@ -817,10 +904,24 @@ td.cell-align-right .cell-input {
   stroke: var(--line);
 }
 
+.gantt-pane-divider {
+  stroke: var(--line-strong);
+}
+
 .gantt-lane {
   fill: rgba(255, 255, 255, 0.72);
   stroke: transparent;
   transition: fill 0.15s ease, stroke 0.15s ease;
+}
+
+.gantt-grid-line {
+  stroke: #e5edf5;
+  stroke-width: 1;
+}
+
+.gantt-project-grid-line {
+  stroke: #d0deeb;
+  stroke-width: 1;
 }
 
 .gantt-tick-line {
@@ -835,7 +936,15 @@ td.cell-align-right .cell-input {
 
 .gantt-axis-label,
 .gantt-project-code,
-.gantt-project-name {
+.gantt-project-name,
+.gantt-project-owner,
+.gantt-row-index,
+.gantt-phase-name,
+.gantt-phase-progress,
+.status-text,
+.gantt-bar-label,
+.gantt-task-label,
+.gantt-empty-label {
   dominant-baseline: middle;
   font-size: 11px;
 }
@@ -853,6 +962,60 @@ td.cell-align-right .cell-input {
 .gantt-project-name {
   fill: var(--ink-700);
   font-size: 10.5px;
+}
+
+.gantt-project-owner,
+.gantt-row-index,
+.gantt-phase-progress {
+  fill: var(--ink-500);
+}
+
+.gantt-row-index {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-anchor: middle;
+}
+
+.gantt-phase-name {
+  fill: var(--ink-700);
+  font-weight: 600;
+}
+
+.status-text {
+  fill: var(--ink-500);
+  font-size: 9.5px;
+  font-weight: 700;
+}
+
+.status-text.status-good {
+  fill: var(--good);
+}
+
+.status-text.status-risk {
+  fill: var(--risk);
+}
+
+.status-text.status-active {
+  fill: var(--brand-700);
+}
+
+.gantt-bar-label,
+.gantt-task-label {
+  fill: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.gantt-task-label {
+  paint-order: stroke;
+  stroke: rgba(20, 24, 31, 0.2);
+  stroke-width: 2px;
+}
+
+.gantt-empty-label {
+  fill: var(--ink-500);
+  font-size: 12px;
 }
 
 .gantt-legend {
@@ -881,6 +1044,40 @@ td.cell-align-right .cell-input {
   fill: #ffffff;
   stroke: #1565c0;
   stroke-width: 2;
+}
+
+.gantt-task-track {
+  fill: #e9eef5;
+}
+
+.gantt-task-bar {
+  opacity: 0.95;
+}
+
+.gantt-task-bar.legend {
+  fill: #f59e0b;
+}
+
+.phase-status-dot {
+  stroke: #ffffff;
+  stroke-width: 1.5;
+}
+
+.gantt-dependency-line {
+  fill: none;
+  stroke: #536579;
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+  opacity: 0.88;
+  pointer-events: none;
+}
+
+.gantt-dependency-line.legend {
+  opacity: 0.8;
+}
+
+.dependency-arrow-head {
+  fill: #536579;
 }
 
 .guarantee-window {
